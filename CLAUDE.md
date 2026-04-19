@@ -32,3 +32,4 @@ _(Update this list as files are added.)_
 - `Makefile` — Build system for installing/cleaning skills
 - `_CLAUDE.md` — User-level CLAUDE.md installed to `~/.claude/CLAUDE.md`; lists available skills with trigger conditions
 - `skills/data-struct/SKILL.md` — Skill for designing single-threaded data structures with formal specs (complexity, signatures, invariants)
+- `skills/lang-rust/SKILL.md` — Rust coding conventions and style guide
