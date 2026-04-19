@@ -23,10 +23,12 @@ make clean     # Remove installed skills from ~/.claude/
 
 - Maintain an index of all files in this CLAUDE.md so new skills are discoverable.
 - Each new skill or workflow should have a corresponding Makefile target for install and clean.
+- When adding a new skill, also add an entry to `_CLAUDE.md` — one line with the slash command and trigger condition only, no workflow details.
 
 ## File Index
 
 _(Update this list as files are added.)_
 
 - `Makefile` — Build system for installing/cleaning skills
+- `_CLAUDE.md` — User-level CLAUDE.md installed to `~/.claude/CLAUDE.md`; lists available skills with trigger conditions
 - `skills/data-struct/SKILL.md` — Skill for designing single-threaded data structures with formal specs (complexity, signatures, invariants)
