@@ -15,3 +15,4 @@ This file provides guidance to OpenCode across all projects.
 
 - Before any file access operation, the agent must state the reason first.
 - This applies to both file reads (for example, `Read`, `Glob`, `Grep`) and file writes/edits (for example, `Write`, `Edit`, `apply_patch`).
+- Before the first file edit, determine the project's primary language. If it is `<LANG>` and a matching skill exists, load `skill("lang-<LANG>")` first.
