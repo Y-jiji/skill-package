@@ -1,6 +1,7 @@
 ---
 name: lang-rust
 description: Rust coding conventions and style guide. Use when writing or reviewing Rust code.
+compatibility: opencode
 ---
 
 # Rust Guide

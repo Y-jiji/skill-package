@@ -1,19 +1,20 @@
-CLAUDE_DIR := $(HOME)/.claude
-SKILLS_DIR := $(CLAUDE_DIR)/skills
+OPENCODE_DIR := $(HOME)/.config/opencode
+SKILLS_DIR := $(OPENCODE_DIR)/skills
 
 SKILL_NAMES := data-struct
 
-.PHONY: install clean install-claude-md clean-claude-md install-data-struct clean-data-struct install-lang-rust clean-lang-rust
+.PHONY: install clean install-agents-md clean-agents-md install-data-struct clean-data-struct install-lang-rust clean-lang-rust
 
-install: install-claude-md install-data-struct install-lang-rust
+install: install-agents-md install-data-struct install-lang-rust
 
-clean: clean-claude-md clean-data-struct clean-lang-rust
+clean: clean-agents-md clean-data-struct clean-lang-rust
 
-install-claude-md:
-	cp _CLAUDE.md $(CLAUDE_DIR)/CLAUDE.md
+install-agents-md:
+	mkdir -p $(OPENCODE_DIR)
+	cp _AGENTS.md $(OPENCODE_DIR)/AGENTS.md
 
-clean-claude-md:
-	rm -f $(CLAUDE_DIR)/CLAUDE.md
+clean-agents-md:
+	rm -f $(OPENCODE_DIR)/AGENTS.md
 
 install-data-struct:
 	mkdir -p $(SKILLS_DIR)/data-struct

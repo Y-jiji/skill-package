@@ -1,7 +1,7 @@
 ---
 name: data-struct
 description: Design a data structure for single-threaded use cases. Use when the user wants to design, formalize, or reason about a custom data structure with specific time complexity, method signatures, and invariants.
-argument-hint: [description of the data structure]
+compatibility: opencode
 ---
 
 # Data Structure Design (Single-Threaded)
