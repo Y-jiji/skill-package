@@ -25,7 +25,7 @@ make clean     # Remove installed skills from ~/.config/opencode/
 - Each new skill or workflow should have a corresponding Makefile target for install and clean.
 - When adding a new skill, also add an entry to `_AGENTS.md` - one line with the skill name and trigger condition only, no workflow details.
 
-## Agent Behavior Rule
+## Behavior Rule
 
 - Before any file access operation, the agent must state the reason first.
 - This applies to both file reads (for example, `Read`, `Glob`, `Grep`) and file writes/edits (for example, `Write`, `Edit`, `apply_patch`).
@@ -38,3 +38,4 @@ _(Update this list as files are added.)_
 - `_AGENTS.md` - User-level AGENTS.md installed to `~/.config/opencode/AGENTS.md`; lists available skills with trigger conditions
 - `skills/data-struct/SKILL.md` - Skill for designing single-threaded data structures with formal specs (complexity, signatures, invariants)
 - `skills/lang-rust/SKILL.md` - Rust coding conventions and style guide
+- `skills/lang-cuda-cpp/SKILL.md` - CUDA/C++ coding conventions and style guide
