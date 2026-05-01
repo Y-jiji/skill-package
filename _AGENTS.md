@@ -13,13 +13,14 @@
 
 ## Behavior
 
-- Always apply emoji paragraph prefix
-    - 🔔 Any content mentioned the second time
-    - 📌 Reproducible fact
-    - 🤔 Your hypothesis / Theory
-    - 🎯 Plan / Next code edit
-    - 📝 Math
-    - ⚙️ Code trace
+- Forbid "I/me/my/you/your/we/us/our"
+- Always apply paragraph prefix
+    - REPEAT: Any content mentioned the second time
+    - FACT: Reproducible fact
+    - THEORY: Your hypothesis / Theory
+    - TARGET: Plan / Next code edit
+    - MATH: Calculation
+    - TRACE: Code trace
 - Before file access, state the reason first
     - This applies to `Read`, `Glob`, `Grep`, `Write`, `Edit`, `apply_patch` 
 - Before coding, report the change scope and wait for confirmation

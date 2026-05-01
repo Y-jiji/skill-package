@@ -23,4 +23,6 @@ Design a data structure: $ARGUMENTS
 
 ## Skills
 
-
+- `/algorithm-dp` - Dynamic programming problem setup, state design, transitions, and complexity tradeoffs.
+- `/algorithm-graphs` - Graph modeling, traversal, shortest paths, connectivity, and graph invariants.
+- `/algorithm-sorting-searching` - Sorting/searching selection, boundary reasoning, and complexity-driven choice.
