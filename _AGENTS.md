@@ -1,21 +1,26 @@
 # AGENTS.md
 
-This file provides guidance to OpenCode across all projects.
-
 ## Skills
 
-- `/data-struct` - Use when the user wants to design or implement a custom data structure for single-threaded use cases.
-- `/lang-rust` - Use when writing or reviewing Rust code.
-- `/lang-cuda-cpp` - Use when writing or reviewing CUDA or C++ code.
+- On session start, determine language `<LANG>`. Load `/lang-<LANG>` if skill exists. 
+    - Available: [`/lang-rust`, `/lang-cuda-cpp`]
+- Design data structure `/data-struct`
 
-## Preferences
+## Scripting
 
-- For small scripts, prefer `uv run <SCRIPT.py>` (Python) or `cargo +nightly -Zscript <SCRIPT.rs>` (Rust) over setting up a full project.
+- Try `uv run <SCRIPT.py>` (Python)
+- If too slow, try `cargo +nightly -Zscript <SCRIPT.rs>` (Rust)
 
-## Behavior Rule
+## Behavior
 
-- Before any file access operation, the agent must state the reason first.
-- This applies to both file reads (for example, `Read`, `Glob`, `Grep`) and file writes/edits (for example, `Write`, `Edit`, `apply_patch`).
-- At task start, determine the project's primary language. If it is `<LANG>` and a matching skill exists, load `skill("lang-<LANG>")` immediately.
-- Before every file edit, report the change scope. Always wait for confirmation. 
-- When file edit exceeds confirmed scope, stop immediately. 
+- Always apply emoji paragraph prefix
+    - 🔔 Any content mentioned the second time
+    - 📌 Reproducible fact
+    - 🤔 Your hypothesis / Theory
+    - 🎯 Plan / Next code edit
+    - 📝 Math
+    - ⚙️ Code trace
+- Before file access, state the reason first
+    - This applies to `Read`, `Glob`, `Grep`, `Write`, `Edit`, `apply_patch` 
+- Before coding, report the change scope and wait for confirmation
+    - Beyond confirmed scope, stop immediately

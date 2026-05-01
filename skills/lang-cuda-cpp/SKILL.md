@@ -55,9 +55,11 @@ struct DescriptiveName {
 
 class DescriptiveClass {
 public:
-    // public API
+    // public API, declaration only
 private:
     // private state
+    // at most 12 fields, no internal comments
+    // private methods, declaration only
 };
 ```
 
@@ -71,7 +73,31 @@ enum class DescriptiveNameEnum {
 };
 ```
 
-### Project Layout
+### Abstractions (Virtual Interfaces and Concepts)
+
+Use two layers where appropriate:
+- Runtime polymorphism: abstract interfaces (virtual base classes).
+- Compile-time constraints: concepts.
+
+```cpp
+/** One line: runtime interface purpose. */
+class InterfaceName {
+public:
+    virtual ~InterfaceName() = default;
+
+    /** One line: what this operation does. */
+    virtual ReturnType op(/* at most 6 args, short names */) = 0;
+};
+```
+
+```cpp
+template <typename T>
+concept ConceptName = requires(T x) {
+    // required expressions and semantic constraints
+};
+```
+
+## Project Layout
 
 Use both `src/` and `include/` (unlike Rust-style `src`-only layouts).
 
@@ -106,14 +132,13 @@ discovery and wiring across random `CMakeLists.txt` files.
 
 ```text
 cmake/
-  deps/
-    Find<Dep>.cmake
-    <Dep>.cmake
+  Find<Dep>.cmake
+  <Dep>.cmake
 ```
 
-- Put third-party discovery/versions/link rules in `cmake/deps/*.cmake`.
+- Put third-party discovery/versions/link rules in `cmake/*.cmake`.
 - Keep top-level and target `CMakeLists.txt` focused on project targets and wiring.
-- Include dependency modules explicitly (for example: `include(cmake/deps/CUDAToolkit.cmake)`).
+- Include dependency modules explicitly (for example: `include(cmake/CUDAToolkit.cmake)`).
 
 Register every unittest binary with CTest.
 
@@ -125,30 +150,6 @@ add_test(NAME correct.math COMMAND correct_math)
 
 - Unittest binaries must be invokable by `ctest`.
 - Keep `correct` and `perf` binaries separately named and registered.
-
-### Abstractions (Virtual Interfaces and Concepts)
-
-Use two layers where appropriate:
-- Runtime polymorphism: abstract interfaces (virtual base classes).
-- Compile-time constraints: concepts.
-
-```cpp
-/** One line: runtime interface purpose. */
-class InterfaceName {
-public:
-    virtual ~InterfaceName() = default;
-
-    /** One line: what this operation does. */
-    virtual ReturnType op(/* at most 6 args, short names */) = 0;
-};
-```
-
-```cpp
-template <typename T>
-concept ConceptName = requires(T x) {
-    // required expressions and semantic constraints
-};
-```
 
 ## API Design
 

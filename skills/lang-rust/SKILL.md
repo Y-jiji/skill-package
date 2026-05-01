@@ -6,7 +6,7 @@ compatibility: opencode
 
 # Rust Guide
 
-Make sure documentation is updated synchronously. 
+Make sure documentation/comments are updated synchronously. 
 
 ## Code Style
 
@@ -38,10 +38,13 @@ Make sure documentation is updated synchronously.
 /// One line: what it is
 /// - `<T>`: generic type desc, only info not inferable from trait bounds
 /// - `attr`: attr desc, only info not inferable from type
-[pub/pub(super)/pub(crate)/nothing] struct DescriptiveName<...> {
+[pub/pub(super)/pub(crate)/nothing] struct DescriptiveStructName<...> {
     // at most 12 fields, no internal comments
 }
 ```
+
+- One struct should not have more than 7 `impl StructName { ... }` methods including both public and private.  
+- Trait methods `impl TraitName for StructName { ... }` does not count. 
 
 ### Enums
 
