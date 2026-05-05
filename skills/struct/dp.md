@@ -1,7 +1,6 @@
 ---
 name: algorithm-dp
 description: Skills and conventions for dynamic programming work in an educational algorithms and data structures repository. Use this skill whenever working on dynamic programming problems, recurrence design, memoization, tabulation, or Java-based educational DP code.
-compatibility: opencode
 ---
 
 # Dynamic Programming Education Skills

@@ -1,7 +1,6 @@
 ---
 name: algorithm-sorting-searching
 description: Complete sorting and searching algorithm implementations including quick sort, merge sort, counting sort, and binary search with complexity analysis and troubleshooting guidance.
-compatibility: opencode
 ---
 
 # Sorting Algorithms Skill

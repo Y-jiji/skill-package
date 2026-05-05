@@ -9,15 +9,18 @@ This repository is a skill pack - a collection of reusable OpenCode skills and w
 ## Build & Install
 
 ```sh
-make install   # Install all skills/workflows to ~/.config/opencode/
-make clean     # Remove installed skills from ~/.config/opencode/
+make install           # Install for both opencode and claude code
+make install-opencode  # Install skills to ~/.config/opencode/
+make install-claude    # Install commands to ~/.claude/commands/
+make clean             # Remove all installed files
 ```
 
 ## Architecture
 
-- **Makefile**: Central build system. Add new skill names to `SKILL_NAMES` to get `install-<name>` and `clean-<name>` targets automatically.
+- **Makefile**: Central build system. Add new skill names to `SKILL_NAMES` to get install/clean targets for both opencode and claude.
 - **skills/<name>/SKILL.md**: Each skill lives in its own directory under `skills/`. The `SKILL.md` file uses YAML frontmatter (`name`, `description`) followed by markdown instructions.
-- Skills are installed to `~/.config/opencode/skills/<name>/` where OpenCode discovers them as agent skills.
+- OpenCode: skills install to `~/.config/opencode/skills/<name>/`
+- Claude Code: skills install to `~/.claude/commands/<name>.md`
 
 ## Conventions
 
@@ -36,9 +39,10 @@ _(Update this list as files are added.)_
 
 - `Makefile` - Build system for installing/cleaning skills
 - `_AGENTS.md` - User-level AGENTS.md installed to `~/.config/opencode/AGENTS.md`; lists available skills with trigger conditions
-- `skills/data-struct/SKILL.md` - Skill for designing single-threaded data structures with formal specs (complexity, signatures, invariants)
-- `skills/algorithm-dp/SKILL.md` - Skill for dynamic programming state design, recurrences, base cases, and complexity reasoning
-- `skills/algorithm-graphs/SKILL.md` - Skill for graph modeling, traversal, shortest paths, connectivity, and graph invariants
-- `skills/algorithm-sorting-searching/SKILL.md` - Skill for sorting/searching choice, correctness boundaries, and complexity tradeoffs
-- `skills/lang-rust/SKILL.md` - Rust coding conventions and style guide
-- `skills/lang-cuda-cpp/SKILL.md` - CUDA/C++ coding conventions and style guide
+- `skills/struct/SKILL.md` - Skill for designing single-threaded data structures with formal specs (complexity, signatures, invariants)
+- `skills/struct/algorithm-dp.md` - Sub-skill: dynamic programming state design, recurrences, base cases, and complexity reasoning
+- `skills/struct/algorithm-graphs.md` - Sub-skill: graph modeling, traversal, shortest paths, connectivity, and graph invariants
+- `skills/struct/algorithm-sorting-searching.md` - Sub-skill: sorting/searching choice, correctness boundaries, and complexity tradeoffs
+- `skills/lang/SKILL.md` - Language convention loader
+- `skills/lang/rust.md` - Sub-skill: Rust coding conventions and style guide
+- `skills/lang/cuda-cpp.md` - Sub-skill: CUDA/C++ coding conventions and style guide
