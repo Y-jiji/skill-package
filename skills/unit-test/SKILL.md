@@ -9,3 +9,4 @@ description: Unit testing conventions. Fuzz/property-based testing by default, s
 - Split into correctness tests and performance tests.
 - Test all public methods in all possible call orders.
 - Create a mock/reference implementation to test against.
+- For statistical properties, design tests using the claimed tail bound.
