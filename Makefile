@@ -1,12 +1,13 @@
 OPENCODE_DIR := $(HOME)/.config/opencode
 CLAUDE_DIR := $(HOME)/.claude
 CLAUDE_SETTINGS := $(CLAUDE_DIR)/settings.json
+CODEX_DIR := $(HOME)/.codex
 
-.PHONY: install install-opencode install-claude clean clean-opencode clean-claude
+.PHONY: install install-opencode install-claude install-codex clean clean-opencode clean-claude clean-codex
 
-install: install-opencode install-claude
+install: install-opencode install-claude install-codex
 
-clean: clean-opencode clean-claude
+clean: clean-opencode clean-claude clean-codex
 
 # --- opencode ---
 
@@ -30,3 +31,14 @@ install-claude:
 clean-claude:
 	rm -f $(CLAUDE_DIR)/CLAUDE.md $(CLAUDE_SETTINGS)
 	rm -rf $(CLAUDE_DIR)/skills
+
+# --- codex-cli ---
+
+install-codex:
+	mkdir -p $(CODEX_DIR)
+	cp _AGENTS.md $(CODEX_DIR)/AGENTS.md
+	cp -r skills $(CODEX_DIR)/
+
+clean-codex:
+	rm -f $(CODEX_DIR)/AGENTS.md
+	rm -rf $(CODEX_DIR)/skills
