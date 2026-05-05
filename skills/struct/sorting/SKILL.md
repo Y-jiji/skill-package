@@ -1,6 +1,6 @@
 ---
-name: algorithm-sorting-searching
-description: Complete sorting and searching algorithm implementations including quick sort, merge sort, counting sort, and binary search with complexity analysis and troubleshooting guidance.
+name: struct:sorting
+description: Sorting and searching.
 ---
 
 # Sorting Algorithms Skill

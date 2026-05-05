@@ -1,6 +1,6 @@
 ---
 name: struct
-description: Design a data structure. Use when the user wants to design a custom data structure with specific time complexity, method signatures, and invariants.
+description: Data structure design.
 ---
 
 # Structure Design

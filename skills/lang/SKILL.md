@@ -1,6 +1,6 @@
 ---
 name: lang
-description: Load language-specific coding conventions. Use on session start to load the appropriate language guide.
+description: Language conventions.
 ---
 
 # Language Conventions

@@ -1,6 +1,6 @@
 ---
-name: rust
-description: Rust coding conventions and style guide. Use when writing or reviewing Rust code.
+name: lang:rust
+description: Rust conventions.
 ---
 
 # Rust Guide

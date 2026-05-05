@@ -40,9 +40,9 @@ _(Update this list as files are added.)_
 - `Makefile` - Build system for installing/cleaning skills
 - `_AGENTS.md` - User-level AGENTS.md installed to `~/.config/opencode/AGENTS.md`; lists available skills with trigger conditions
 - `skills/struct/SKILL.md` - Skill for designing single-threaded data structures with formal specs (complexity, signatures, invariants)
-- `skills/struct/algorithm-dp.md` - Sub-skill: dynamic programming state design, recurrences, base cases, and complexity reasoning
-- `skills/struct/algorithm-graphs.md` - Sub-skill: graph modeling, traversal, shortest paths, connectivity, and graph invariants
-- `skills/struct/algorithm-sorting-searching.md` - Sub-skill: sorting/searching choice, correctness boundaries, and complexity tradeoffs
+- `skills/struct/dp/SKILL.md` - Sub-skill: dynamic programming state design, recurrences, base cases, and complexity reasoning
+- `skills/struct/graphs/SKILL.md` - Sub-skill: graph modeling, traversal, shortest paths, connectivity, and graph invariants
+- `skills/struct/sorting/SKILL.md` - Sub-skill: sorting/searching choice, correctness boundaries, and complexity tradeoffs
 - `skills/lang/SKILL.md` - Language convention loader
-- `skills/lang/rust.md` - Sub-skill: Rust coding conventions and style guide
-- `skills/lang/cuda-cpp.md` - Sub-skill: CUDA/C++ coding conventions and style guide
+- `skills/lang/rust/SKILL.md` - Sub-skill: Rust coding conventions and style guide
+- `skills/lang/cuda-cpp/SKILL.md` - Sub-skill: CUDA/C++ coding conventions and style guide

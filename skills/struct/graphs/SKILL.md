@@ -1,6 +1,6 @@
 ---
-name: algorithm-graphs
-description: Skills and conventions for graph-theory work in an educational algorithms and data structures repository. Use this skill whenever working on graph modeling, BFS, DFS, shortest paths, union-find, or Java-based educational graph code.
+name: struct:graphs
+description: Graph algorithms.
 ---
 
 # Graph Algorithms Education Skills

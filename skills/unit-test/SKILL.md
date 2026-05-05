@@ -1,6 +1,6 @@
 ---
 name: unit-test
-description: Unit testing conventions. Fuzz/property-based testing by default, split into correctness and performance categories.
+description: Unit testing.
 ---
 
 # Unit Testing

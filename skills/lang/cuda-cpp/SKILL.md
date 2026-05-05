@@ -1,6 +1,6 @@
 ---
-name: cuda-cpp
-description: CUDA/C++ coding conventions and style guide. Use when writing or reviewing CUDA or C++ code.
+name: lang:cuda-cpp
+description: CUDA/C++ conventions.
 ---
 
 # CUDA/C++ Guide
