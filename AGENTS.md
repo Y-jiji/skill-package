@@ -17,10 +17,11 @@ make clean             # Remove all installed files
 
 ## Architecture
 
-- **Makefile**: Central build system. Add new skill names to `SKILL_NAMES` to get install/clean targets for both opencode and claude.
+- **Makefile**: Central build system. `cp -r skills` copies the entire skills tree.
 - **skills/<name>/SKILL.md**: Each skill lives in its own directory under `skills/`. The `SKILL.md` file uses YAML frontmatter (`name`, `description`) followed by markdown instructions.
+- **Flat skill layout**: Every skill is a single self-contained SKILL.md. No dynamic dispatch or sub-file loading. Parent skills (`/lang`, `/struct`) list available sub-skills for gradual context unfolding.
 - OpenCode: skills install to `~/.config/opencode/skills/<name>/`
-- Claude Code: skills install to `~/.claude/commands/<name>.md`
+- Claude Code: skills install to `~/.claude/skills/<name>/`
 
 ## Conventions
 
@@ -33,16 +34,30 @@ make clean             # Remove all installed files
 - Before any file access operation, the agent must state the reason first.
 - This applies to both file reads (for example, `Read`, `Glob`, `Grep`) and file writes/edits (for example, `Write`, `Edit`, `apply_patch`).
 
+## Hooks
+
+- `hooks/block-skill-reads.sh` - PreToolUse hook that blocks direct `Read` access to `~/.claude/skills/`. Forces use of the Skill tool (`/lang`, `/struct`, `/unit-test`, etc.) instead.
+
 ## File Index
 
 _(Update this list as files are added.)_
 
-- `Makefile` - Build system for installing/cleaning skills
-- `_AGENTS.md` - User-level AGENTS.md installed to `~/.config/opencode/AGENTS.md`; lists available skills with trigger conditions
-- `skills/struct/SKILL.md` - Skill for designing single-threaded data structures with formal specs (complexity, signatures, invariants)
-- `skills/struct/dp/SKILL.md` - Sub-skill: dynamic programming state design, recurrences, base cases, and complexity reasoning
-- `skills/struct/graphs/SKILL.md` - Sub-skill: graph modeling, traversal, shortest paths, connectivity, and graph invariants
-- `skills/struct/sorting/SKILL.md` - Sub-skill: sorting/searching choice, correctness boundaries, and complexity tradeoffs
-- `skills/lang/SKILL.md` - Language convention loader
-- `skills/lang/rust/SKILL.md` - Sub-skill: Rust coding conventions and style guide
-- `skills/lang/cuda-cpp/SKILL.md` - Sub-skill: CUDA/C++ coding conventions and style guide
+- `Makefile` - Build system for installing/cleaning skills and hooks
+- `hooks/block-skill-reads.sh` - PreToolUse hook blocking direct Read of skill files
+- `_AGENTS.md` - User-level AGENTS.md installed to `~/.config/opencode/AGENTS.md` and `~/.claude/CLAUDE.md`
+- `skills/unit-test/SKILL.md` - Unit testing conventions
+- `skills/lang/SKILL.md` - Language detection overview, lists available language skills
+- `skills/cuda-cpp/SKILL.md` - CUDA/C++ conventions overview
+- `skills/cuda-cpp-functions/SKILL.md` - CUDA/C++ function and method style
+- `skills/cuda-cpp-classes/SKILL.md` - CUDA/C++ struct, class, and enum layout
+- `skills/cuda-cpp-abstractions/SKILL.md` - CUDA/C++ virtual interfaces and concepts
+- `skills/cuda-cpp-layout/SKILL.md` - CUDA/C++ project layout and CMake conventions
+- `skills/rust/SKILL.md` - Rust conventions overview
+- `skills/rust-functions/SKILL.md` - Rust function and method style
+- `skills/rust-structs/SKILL.md` - Rust struct and enum layout
+- `skills/rust-traits/SKILL.md` - Rust trait style
+- `skills/rust-tests/SKILL.md` - Rust test conventions
+- `skills/struct/SKILL.md` - Data structure design template, lists sub-topic skills
+- `skills/struct-dp/SKILL.md` - Dynamic programming state design
+- `skills/struct-graphs/SKILL.md` - Graph modeling and traversal
+- `skills/struct-sorting/SKILL.md` - Sorting and searching selection

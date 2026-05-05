@@ -1,3 +1,8 @@
+---
+name: rust-tests
+description: Rust test conventions
+---
+
 # Rust Tests
 
 Split into `perf` and `correct` modules. Do not use `mod tests`.

@@ -1,3 +1,8 @@
+---
+name: cuda-cpp-functions
+description: CUDA/C++ function and method style
+---
+
 # CUDA/C++ Functions and Methods
 
 ```cpp

@@ -23,14 +23,15 @@ clean-opencode:
 # --- claude code ---
 
 install-claude:
-	mkdir -p $(CLAUDE_DIR)
+	mkdir -p $(CLAUDE_DIR)/hooks
 	cp _AGENTS.md $(CLAUDE_DIR)/CLAUDE.md
 	cp -r skills $(CLAUDE_DIR)/skills
+	cp -r hooks/ $(CLAUDE_DIR)/hooks/
 	cp claude-settings.json $(CLAUDE_SETTINGS)
 
 clean-claude:
 	rm -f $(CLAUDE_DIR)/CLAUDE.md $(CLAUDE_SETTINGS)
-	rm -rf $(CLAUDE_DIR)/skills
+	rm -rf $(CLAUDE_DIR)/skills $(CLAUDE_DIR)/hooks
 
 # --- codex-cli ---
 

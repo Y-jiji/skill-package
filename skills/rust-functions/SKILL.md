@@ -1,3 +1,8 @@
+---
+name: rust-functions
+description: Rust function and method style
+---
+
 # Rust Functions and Methods
 
 ```rust

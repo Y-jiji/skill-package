@@ -1,3 +1,8 @@
+---
+name: rust-structs
+description: Rust struct and enum layout
+---
+
 # Rust Structs and Enums
 
 ## Structs

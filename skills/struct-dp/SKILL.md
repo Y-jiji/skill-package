@@ -1,29 +1,28 @@
 ---
-name: struct:graphs
-description: Graph algorithms.
+name: struct-dp
+description: Dynamic programming state design
 ---
 
-# Graph Algorithms Education Skills
+# Dynamic Programming Education Skills
 
-This skill defines the conventions and standards for graph algorithm work in an
-educational algorithms repository. The goal is to make every graph
-implementation clear, well-tested, and accessible to learners who may not have
-deep CS backgrounds.
+This skill defines the conventions and standards for dynamic programming work in
+an educational algorithms repository. The goal is to make every DP implementation
+clear, well-tested, and accessible to learners who may not have deep CS
+backgrounds.
 
-Design a graph solution: $ARGUMENTS
+Design a dynamic programming solution: $ARGUMENTS
 
 ---
 
 ## Topic Categories
 
-- Graph algorithms
-- Graph traversal
-- BFS
-- DFS
-- Shortest paths
-- Connectivity
-- Complexity analysis
-- Optimization over graph structure
+- Dynamic programming
+- Optimization problems
+- Counting problems
+- Recurrence design
+- Memoization
+- Tabulation
+- Space-time tradeoffs
 
 ## Skill 1: Code Documentation
 
@@ -40,18 +39,15 @@ Every public method gets a doc comment that explains:
 
 ```java
 /**
- * Finds the shortest path from a source node to all other nodes
- * using Bellman-Ford's algorithm. Unlike Dijkstra's, this handles
- * negative edge weights and detects negative cycles.
+ * Computes the minimum cost to reach the last index using bottom-up
+ * dynamic programming. Each state stores the best known answer for a
+ * prefix, and each transition extends from a previously solved subproblem.
  *
- * @param graph - adjacency list where graph[i] lists edges from node i
- * @param start - the source node index
- * @param n     - total number of nodes in the graph
- * @return dist array where dist[i] = shortest distance from start to i,
- *         or Double.NEGATIVE_INFINITY if node i is in a negative cycle
+ * @param cost - cost[i] is the price paid when stepping on index i
+ * @return minimum total cost to reach the final position
  *
- * Time:  O(V*E)
- * Space: O(V)
+ * Time:  O(n)
+ * Space: O(n)
  */
 ```
 
@@ -61,25 +57,15 @@ Comment the **why**, not the **what**. Focus on lines where the logic isn't
 obvious:
 
 ```java
-// Relax all edges V-1 times. After V-1 passes, shortest paths
-// are guaranteed if no negative cycles exist.
-for (int i = 0; i < n - 1; i++) {
-  for (Edge e : edges) {
-    if (dist[e.from] + e.cost < dist[e.to]) {
-      dist[e.to] = dist[e.from] + e.cost;
-    }
-  }
+// dp[i] depends only on smaller indices, so iterating left-to-right
+// guarantees each subproblem is solved before it is used.
+for (int i = 2; i < n; i++) {
+  dp[i] = cost[i] + Math.min(dp[i - 1], dp[i - 2]);
 }
 
-// If we can still relax an edge after V-1 passes, that node
-// is reachable from a negative cycle - mark it as -infinity.
-for (int i = 0; i < n - 1; i++) {
-  for (Edge e : edges) {
-    if (dist[e.from] + e.cost < dist[e.to]) {
-      dist[e.to] = Double.NEGATIVE_INFINITY;
-    }
-  }
-}
+// The recurrence stores the best answer for each suffix endpoint.
+// Taking the minimum of the last two states models the final move.
+return Math.min(dp[n - 1], dp[n - 2]);
 ```
 
 ### File-Level Header
@@ -88,14 +74,15 @@ Every file starts with a comment block explaining the algorithm in the file.
 
 ```java
 /**
- * Bellman-Ford Shortest Path Algorithm
+ * Dynamic Programming Template
  *
- * Computes single-source shortest paths in a weighted graph.
- * Handles negative edge weights and detects negative cycles.
+ * Solves an optimization/counting problem by defining subproblems,
+ * establishing a recurrence, and filling answers in dependency order.
  *
  * Use cases:
- *   - Graphs with negative weights (where Dijkstra fails)
- *   - Detecting negative cycles (e.g., currency arbitrage)
+ *   - Optimization over prefixes, suffixes, or intervals
+ *   - Counting paths, subsequences, or combinations
+ *   - Problems with overlapping subproblems and optimal substructure
  */
 ```
 
@@ -108,7 +95,7 @@ Every file starts with a comment block explaining the algorithm in the file.
 ### Test File Structure
 
 Place tests alongside source files or in a `tests/` directory. Name test files
-to mirror the source: `BellmanFord.java` -> `BellmanFordTest.java`.
+to mirror the source: `Knapsack.java` -> `KnapsackTest.java`.
 
 ### What to Test
 
@@ -126,16 +113,16 @@ Use descriptive names that read like a sentence:
 
 ```java
 @Test
-public void testShortestPathSimpleGraph() { ... }
+public void testMinCostClimbingStairsSimpleCase() { ... }
 
 @Test
-public void testDetectsNegativeCycle() { ... }
+public void testKnapsackZeroCapacity() { ... }
 
 @Test
-public void testSingleNodeGraph() { ... }
+public void testLongestCommonSubsequenceEmptyString() { ... }
 
 @Test
-public void testDisconnectedNodes() { ... }
+public void testCoinChangeImpossibleTarget() { ... }
 ```
 
 ### Test Documentation
@@ -145,14 +132,12 @@ why that scenario matters:
 
 ```java
 /**
- * Graph with a negative cycle reachable from the source.
- * Bellman-Ford should mark affected nodes as NEGATIVE_INFINITY.
- *
- *   0 --5--> 1 --(-10)--> 2 --3--> 1
- *                (creates cycle 1->2->1 with net cost -7)
+ * Target sum cannot be formed by any combination of coins.
+ * The DP table should preserve the sentinel unreachable state
+ * instead of accidentally overflowing or returning a partial answer.
  */
 @Test
-public void testDetectsNegativeCycle() {
+public void testCoinChangeImpossibleTarget() {
   // ... test body
 }
 ```
@@ -184,17 +169,17 @@ Remove code that is:
 Keep alternative implementations when they teach different approaches:
 
 ```java
-// KEEP - BFS and DFS solutions to the same problem teach different techniques
-public int[] bfsSolve(int[][] grid) { ... }
-public int[] dfsSolve(int[][] grid) { ... }
+// KEEP - memoized and tabulated solutions teach different techniques
+public int fibMemo(int n) { ... }
+public int fibTab(int n) { ... }
 
-// KEEP - adjacency list vs edge list can teach different tradeoffs
-public void runWithAdjacencyList() { ... }
-public void runWithEdgeList() { ... }
+// KEEP - full table and rolling-array versions show space optimization
+public int lcsTable(String a, String b) { ... }
+public int lcsRolling(String a, String b) { ... }
 
 // REMOVE - identical logic, just different variable names
-public int search_v1(int[] arr, int target) { ... }
-public int search_v2(int[] arr, int target) { ... }
+public int knapsack_v1(int[] w, int[] v, int cap) { ... }
+public int knapsack_v2(int[] weights, int[] values, int capacity) { ... }
 ```
 
 When keeping alternatives, clearly label them with a comment explaining the
@@ -202,9 +187,9 @@ educational purpose:
 
 ```java
 /**
- * Recursive implementation of DFS.
- * Compare with dfsIterative() to see the stack-based approach.
- * The iterative version avoids recursion depth limits on deep graphs.
+ * Top-down memoized implementation of edit distance.
+ * Compare with editDistanceBottomUp() to see how the same recurrence
+ * can be evaluated iteratively.
  */
 ```
 
@@ -230,47 +215,39 @@ Use **short, clear** variable names. Prefer readability through simplicity:
 
 ```java
 // GOOD - short and clear
-int n = graph.length;
-int[] dist = new int[n];
+int n = nums.length;
+int[][] dp = new int[n][n];
 boolean[] vis = new boolean[n];
-List<int[]> adj = new ArrayList<>();
-Queue<Integer> q = new LinkedList<>();
-int src = 0;
-int dst = n - 1;
+int ans = 0;
+int lo = 0;
+int hi = n - 1;
 
 // BAD - verbose names that clutter algorithm logic
-int numberOfNodesInGraph = graph.length;
-int[] shortestDistanceFromSource = new int[numberOfNodesInGraph];
-boolean[] hasNodeBeenVisited = new boolean[numberOfNodesInGraph];
-List<int[]> adjacencyListRepresentation = new ArrayList<>();
-Queue<Integer> breadthFirstSearchQueue = new LinkedList<>();
-int sourceNodeIndex = 0;
-int destinationNodeIndex = numberOfNodesInGraph - 1;
+int numberOfElementsInInputArray = nums.length;
+int[][] dynamicProgrammingStateTable = new int[numberOfElementsInInputArray][numberOfElementsInInputArray];
+boolean[] hasStateBeenVisited = new boolean[numberOfElementsInInputArray];
+int bestAnswerDiscoveredSoFar = 0;
 ```
 
 Common short names (use consistently across the repo):
 
-| Name   | Meaning                  |
-|--------|--------------------------|
-| `n`    | number of elements/nodes |
-| `m`    | number of edges          |
-| `i, j` | loop indices             |
-| `from` | edge start               |
-| `to`   | edge end                 |
-| `cost` | edge weight              |
-| `dist` | distance array           |
-| `vis`  | visited array            |
-| `adj`  | adjacency list           |
-| `q`    | queue                    |
-| `pq`   | priority queue           |
-| `st`   | stack                    |
-| `ans`  | result/answer            |
-| `src`  | source node              |
-| `dst`  | destination node         |
-| `cnt`  | counter                  |
-| `sz`   | size                     |
-| `cur`  | current element          |
-| `prev` | previous element         |
+| Name   | Meaning                       |
+|--------|-------------------------------|
+| `n`    | number of elements/nodes      |
+| `m`    | number of edges               |
+| `i, j` | loop indices                  |
+| `cost` | transition cost               |
+| `dist` | distance array                |
+| `vis`  | visited array                 |
+| `dp`   | dynamic programming table     |
+| `ans`  | result/answer                 |
+| `lo`   | low pointer/bound             |
+| `hi`   | high pointer/bound            |
+| `mid`  | midpoint                      |
+| `cnt`  | counter                       |
+| `sz`   | size                          |
+| `cur`  | current element/state         |
+| `prev` | previous element/state        |
 | `next` | next element (use `nxt` if shadowing keyword) |
 ```
 
@@ -288,13 +265,13 @@ Always use explicit multiplication and parentheses in Big-O expressions for clar
 
 ```java
 // GOOD - explicit and unambiguous
-// Time:  O(n*log(n))
-// Time:  O(V*E)
-// Time:  O((V+E)*log(V))
+// Time:  O(n*k)
+// Time:  O(n^2)
+// Time:  O(n*m)
 
 // BAD - missing multiplication and parentheses
-// Time:  O(n log n)
-// Time:  O(V E)
+// Time:  O(n k)
+// Time:  O(n m)
 
 // Simple expressions without multiplication are fine as-is
 // Time:  O(n)
@@ -309,17 +286,16 @@ This improves readability, especially in nested loops:
 
 ```java
 // BAD - body on same line as for
-for (int j = 0; j < n; j++) augmented[i][j] = matrix[i][j];
+for (int j = 0; j <= target; j++) dp[i][j] = INF;
 
 // GOOD - body on its own line
-for (int j = 0; j < n; j++)
-  augmented[i][j] = matrix[i][j];
+for (int j = 0; j <= target; j++)
+  dp[i][j] = INF;
 
-// GOOD - nested for loops, each level on its own line
-for (int i = 0; i < n; i++)
-  for (int j = 0; j < n; j++)
-    for (int k = 0; k < n; k++)
-      result[i][j] += m1[i][k] * m2[k][j];
+// GOOD - nested loops, each level on its own line
+for (int i = 1; i <= n; i++)
+  for (int j = 1; j <= m; j++)
+    dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
 ```
 
 ### Avoid Java Streams
@@ -349,29 +325,28 @@ for (int x : arr) {
 
 ```java
 // AVOID - deep nesting
-if (node != null) {
-  if (node.left != null) {
-    if (node.left.val == target) {
-      return true;
+if (n > 0) {
+  if (memo != null) {
+    if (memo[n] != -1) {
+      return memo[n];
     }
   }
 }
-return false;
 
 // PREFER - early returns keep code flat
-if (node == null) return false;
-if (node.left == null) return false;
-return node.left.val == target;
+if (n <= 0) return 0;
+if (memo == null) return 0;
+if (memo[n] != -1) return memo[n];
 ```
 
 2. **Extract repeated logic** - but only if it genuinely reduces complexity
-3. **Use standard library where it clarifies** - `Collections.swap()`, `Math.min()`, etc.
+3. **Use standard library where it clarifies** - `Arrays.fill()`, `Math.min()`, etc.
 4. **Remove unnecessary wrappers** - don't wrap a single method call in another method
 5. **Prefer arrays over complex data structures** when the problem allows it
 
 ### What NOT to Simplify
 
-- Don't merge two clearly distinct algorithm phases into one loop just to save lines
+- Don't merge two clearly distinct DP phases into one loop just to save lines
 - Don't replace clear if/else chains with ternary operators if it reduces readability
 - Don't remove intermediate variables that give a name to a complex expression
 
@@ -388,12 +363,11 @@ When modifying any lines of code, actively check for and report:
 - [ ] **Off-by-one errors** - loop bounds, array indices, fence-post problems
 - [ ] **Integer overflow** - multiplication or addition that could exceed int range
 - [ ] **Null/empty checks** - missing guards for null arrays, empty collections
-- [ ] **Uninitialized values** - using variables before assignment
+- [ ] **Uninitialized values** - using variables before assignment (especially in dp arrays)
 - [ ] **Wrong comparison** - `==` vs `<=`, `<` vs `<=` in loop conditions
 - [ ] **Infinite loops** - conditions that never become false, missing increments
 - [ ] **Array out of bounds** - indexing with `i+1`, `i-1` without range checks
-- [ ] **Graph issues** - missing visited check, wrong direction in directed graph
-- [ ] **Incorrect base cases** - empty graph, disconnected node handling
+- [ ] **Incorrect base cases** - `dp[0]`, recursion base case, empty input
 - [ ] **Mutation bugs** - modifying input that caller expects unchanged
 - [ ] **Copy vs reference** - shallow copy when deep copy needed
 - [ ] **Return value misuse** - ignoring return value, returning wrong variable
@@ -403,40 +377,47 @@ When modifying any lines of code, actively check for and report:
 When a bug is found, report it clearly:
 
 ```text
-BUG FOUND in BellmanFord.java line 42:
-  Loop runs `i < n` but should be `i < n - 1`.
-  The extra iteration incorrectly marks reachable nodes as
-  being in a negative cycle.
-  FIX: Change `i < n` to `i < n - 1`
+BUG FOUND in Knapsack.java line 42:
+  Loop runs `j < capacity` but should be `j <= capacity`.
+  The final column is never computed, so the answer for the full
+  capacity is left at its default value.
+  FIX: Change `j < capacity` to `j <= capacity`
 ```
 
 ---
 
-## Skill 7: Graph Modeling
+## Skill 7: Dynamic Programming Design
 
-**Goal:** Make the graph structure explicit before coding.
+**Goal:** Make the DP structure explicit before coding.
 
-### Graph Design Checklist
+### DP Design Checklist
 
 Before implementation, state:
-- Vertex meaning
-- Edge meaning
-- Directed / undirected
-- Weighted / unweighted
-- Candidate algorithm: BFS / DFS / topological / union-find / shortest path / MST
-- Core invariant
-- Visit or relaxation rule
-- Representation: adjacency list / matrix / edge list
+- Objective: optimize / count / decide / reconstruct
+- State definition
+- Meaning of each dimension
+- Recurrence relation
+- Base cases
+- Evaluation order: top-down / bottom-up
+- Storage choice: full table / rolling state / memo map
+
+### State Questions
+
+Use these prompts:
+- What information must remain true after solving a prefix, suffix, or interval?
+- Which smaller subproblems fully determine the larger one?
+- Can one dimension be removed by keeping only the previous row/column/state?
+- Does reconstruction require parent pointers or re-walking the table?
 
 ### Edge Cases
 
 Always check:
-- disconnected components
-- cycles
-- self-loops
-- duplicate edges
-- negative weights
-- unreachable destination
+- empty input
+- single element
+- impossible states
+- duplicate values
+- negative values
+- overflow in sentinel arithmetic
 
 ---
 

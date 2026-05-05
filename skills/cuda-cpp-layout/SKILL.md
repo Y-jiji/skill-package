@@ -1,3 +1,8 @@
+---
+name: cuda-cpp-layout
+description: CUDA/C++ project layout and CMake conventions
+---
+
 # CUDA/C++ Project Layout
 
 Use both `src/` and `include/` (unlike Rust-style `src`-only layouts).

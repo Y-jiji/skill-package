@@ -1,3 +1,8 @@
+---
+name: cuda-cpp-abstractions
+description: CUDA/C++ virtual interfaces and concepts
+---
+
 # CUDA/C++ Abstractions (Virtual Interfaces and Concepts)
 
 Use two layers where appropriate:

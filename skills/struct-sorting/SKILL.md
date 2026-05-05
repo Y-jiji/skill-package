@@ -1,6 +1,6 @@
 ---
-name: struct:sorting
-description: Sorting and searching.
+name: struct-sorting
+description: Sorting and searching selection
 ---
 
 # Sorting Algorithms Skill

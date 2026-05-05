@@ -1,3 +1,8 @@
+---
+name: cuda-cpp-classes
+description: CUDA/C++ struct, class, and enum layout
+---
+
 # CUDA/C++ Structs, Classes, and Enums
 
 ## Structs and Classes

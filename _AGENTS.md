@@ -2,8 +2,11 @@
 
 ## Skills
 
+- Load skills instead of reading SKILL.md files. 
 - On session start, load `/lang` to determine and apply language conventions
-- Design a structure `/struct`
+  - `/cuda-cpp` for CUDA/C++, `/rust` for Rust
+  - `/cuda-cpp-functions`, `/rust-traits`, etc. for sub-topics
+- Design a structure `/struct` or `/struct-dp`, `/struct-graphs`, `/struct-sorting`
 - Must call before writing tests: `/unit-test`
 
 ## Scripting

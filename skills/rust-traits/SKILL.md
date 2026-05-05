@@ -1,3 +1,8 @@
+---
+name: rust-traits
+description: Rust trait style
+---
+
 # Rust Traits
 
 ```rust

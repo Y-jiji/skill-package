@@ -1,13 +1,13 @@
 ---
 name: struct
-description: Data structure design.
+description: Data structure design
 ---
 
 # Structure Design
 
 Design a structure: $ARGUMENTS
 
-For the following sections, for each bulletpoints 
+For the following sections, for each bulletpoints
 - What did you get from user spec?
 - What did you derive by yourself?
 
@@ -26,14 +26,14 @@ For the following sections, for each bulletpoints
 - Memory pattern: scan / spin / random index
 - Branch pattern: periodic / random
 
-Hard requirements: 
+Hard requirements:
 
-- Methods can be safely called in any order 
+- Methods can be safely called in any order
     - Without panicking/raising exceptions
     - Without corrupting internal state
 
-## Skills
+## Sub-topics
 
-- `/struct:dp` - Dynamic programming problem setup, state design, transitions, and complexity tradeoffs.
-- `/struct:graphs` - Graph modeling, traversal, shortest paths, connectivity, and graph invariants.
-- `/struct:sorting` - Sorting/searching selection, boundary reasoning, and complexity-driven choice.
+- `/struct-dp` — Dynamic programming state design, transitions, and complexity tradeoffs
+- `/struct-graphs` — Graph modeling, traversal, shortest paths, connectivity
+- `/struct-sorting` — Sorting/searching selection, boundary reasoning

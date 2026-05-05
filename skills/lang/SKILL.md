@@ -1,11 +1,22 @@
 ---
 name: lang
-description: Language conventions.
+description: Detect project language and load conventions
 ---
 
 # Language Conventions
 
-Determine the project language, then load the matching sub-skill:
+Determine the project language from the codebase.
 
-- `/lang:rust` - Rust conventions (has sub-skills for functions, structs, traits, tests)
-- `/lang:cuda-cpp` - CUDA/C++ conventions (has sub-skills for functions, classes, abstractions, layout)
+Available language skills:
+- `/cuda-cpp` — CUDA/C++ conventions
+  - `/cuda-cpp-functions` — function and method style
+  - `/cuda-cpp-classes` — struct, class, and enum layout
+  - `/cuda-cpp-abstractions` — virtual interfaces and concepts
+  - `/cuda-cpp-layout` — project layout and CMake conventions
+- `/rust` — Rust conventions
+  - `/rust-functions` — function and method style
+  - `/rust-structs` — struct and enum layout
+  - `/rust-traits` — trait style
+  - `/rust-tests` — test conventions
+
+Invoke the matching language skill for this project.
