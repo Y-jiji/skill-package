@@ -34,16 +34,11 @@ make clean             # Remove all installed files
 - Before any file access operation, the agent must state the reason first.
 - This applies to both file reads (for example, `Read`, `Glob`, `Grep`) and file writes/edits (for example, `Write`, `Edit`, `apply_patch`).
 
-## Hooks
-
-- `hooks/block-skill-reads.sh` - PreToolUse hook that blocks direct `Read` access to `~/.claude/skills/`. Forces use of the Skill tool (`/lang`, `/struct`, `/unit-test`, etc.) instead.
-
 ## File Index
 
 _(Update this list as files are added.)_
 
-- `Makefile` - Build system for installing/cleaning skills and hooks
-- `hooks/block-skill-reads.sh` - PreToolUse hook blocking direct Read of skill files
+- `Makefile` - Build system for installing/cleaning skills
 - `_AGENTS.md` - User-level AGENTS.md installed to `~/.config/opencode/AGENTS.md` and `~/.claude/CLAUDE.md`
 - `skills/unit-test/SKILL.md` - Unit testing conventions
 - `skills/lang/SKILL.md` - Language detection overview, lists available language skills
