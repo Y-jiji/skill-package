@@ -12,7 +12,7 @@
  * internal assertions, state why they should never trigger. Journal key design
  * choices and changes.
  */
-[public/protected/private/static/constexpr/inline/noexcept] ReturnType method(
+[public/protected/private/static/constexpr/inline/noexcept] ReturnType Class::method(
     /* object state via this */,
     /* read-only config */,
     /* external resources (scratch buffers/streams) */,

@@ -4,9 +4,9 @@ Use both `src/` and `include/` (unlike Rust-style `src`-only layouts).
 
 ```text
 src/
-  <module>.cpp
+  <module>.{cpp,cu}
 include/
-  <module>.cpp
+  <module>.{cpp,cu}
 ```
 
 - Keep both `src/` and `include/` flat (no nested feature folders by default).
@@ -14,17 +14,17 @@ include/
 
 ## Tests
 
-Split tests into separate binaries/executables: `perf` and `correct`.
+Split tests into separate binaries/executables: `prof_*` and `test_*`.
 Do not embed tests inside production translation units.
 
 ```text
 unittest/
-  correct_<feature>.cpp
-  perf_<feature>.cpp
+  test_<feature>.{cpp,cu}
+  prof_<feature>.{cpp,cu}
 ```
 
-- `correct`: correctness tests (fuzz/property-based by default, example-based only for hard-to-reach cases).
-- `perf`: performance tests (operation counts, throughput/latency, kernel timing).
+- `test`: correctness tests.
+- `prof`: performance tests.
 
 ## CMake and CTest
 
@@ -44,10 +44,10 @@ cmake/
 Register every unittest binary with CTest.
 
 ```cmake
-add_executable(correct_math unittest/correct_math.cpp)
-target_link_libraries(correct_math PRIVATE mylib)
-add_test(NAME correct.math COMMAND correct_math)
+add_executable(test_math unittest/test_math.cpp)
+target_link_libraries(test_math PRIVATE mylib)
+add_test(NAME test.math COMMAND test_math)
 ```
 
 - Unittest binaries must be invokable by `ctest`.
-- Keep `correct` and `perf` binaries separately named and registered.
+- Keep `test` and `prof` binaries separately named and registered.

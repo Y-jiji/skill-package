@@ -7,9 +7,9 @@ description: Design a data structure. Use when the user wants to design a custom
 
 Design a structure: $ARGUMENTS
 
-Inform user of: 
-- which data-side and method-side bulletpoints did you get from user spec
-- which data-side and method-side bulletpoints did you derive by yourself
+For the following sections, for each bulletpoints 
+- What did you get from user spec?
+- What did you derive by yourself?
 
 ## Data
 
@@ -18,7 +18,7 @@ Inform user of:
 - Representation
 - Invariant
 
-## Method
+## Each Method
 
 - One sentence of what it does
 - Time complexity

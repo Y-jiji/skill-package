@@ -4,6 +4,7 @@
 
 - On session start, load `/lang` to determine and apply language conventions
 - Design a structure `/struct`
+- Writing tests `/unit-test` (must call)
 
 ## Scripting
 

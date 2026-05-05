@@ -23,7 +23,7 @@ struct DescriptiveName {
 template<typename T>
 class DescriptiveClass {
 public:
-    // public API, declaration only + comments
+    // public API, declaration only
     // implementation in .cpp file
     // no public fields
 private:
