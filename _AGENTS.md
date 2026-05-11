@@ -1,8 +1,7 @@
-# Working Guideline
+# CLAUDE.md/AGENTS.md
 
 ## Skills
 
-- Load skills instead of reading SKILL.md files. 
 - On session start, load `/lang` to determine and apply language conventions
   - `/cuda-cpp` for CUDA/C++, `/rust` for Rust
   - `/cuda-cpp-functions`, `/rust-traits`, etc. for sub-topics
@@ -13,7 +12,7 @@
 
 - Try `uv run <SCRIPT.py>` (Python)
 - If too slow, try `cargo +nightly -Zscript <SCRIPT.rs>` (Rust)
-- If script is auxilary, put them in `script` folder. 
+- If the script is auxilary, put it in `script` or `scripts` folder, depending on which exists. 
 
 ## Behavior
 
@@ -21,4 +20,4 @@
 - Before file access, state the reason first
     - This applies to `Read`, `Glob`, `Grep`, `Write`, `Edit`, `apply_patch` 
 - Before coding, report the change scope and wait for confirmation
-    - Going confirmed scope, stop immediately, revert
+    - When going confirmed scope, stop immediately and revert

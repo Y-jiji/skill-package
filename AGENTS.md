@@ -1,17 +1,17 @@
-# AGENTS.md
+# AGENTS.md/CLAUDE.md
 
-This file provides guidance to OpenCode when working with code in this repository.
+This file provides guidance to OpenCode/Claude when working with code in this repository.
 
 ## Project Overview
 
-This repository is a skill pack - a collection of reusable OpenCode skills and workflows. The Makefile handles cleaning and installing each component by copying them into `~/.config/opencode/`.
+This repository is a skill pack - a collection of reusable OpenCode/Claude skills and workflows. The Makefile handles cleaning and installing each component by copying them into `~/.config/opencode/` or `~/.claude/`
 
 ## Build & Install
 
 ```sh
 make install           # Install for both opencode and claude code
 make install-opencode  # Install skills to ~/.config/opencode/
-make install-claude    # Install commands to ~/.claude/commands/
+make install-claude    # Install skills to ~/.claude/skills/
 make clean             # Remove all installed files
 ```
 
