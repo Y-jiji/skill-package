@@ -27,7 +27,6 @@ def _strip_quotes(s: str) -> str:
         return s[1:-1]
     return s
 
-
 def parse_frontmatter(text: str) -> dict | None:
     if not text.startswith("---\n"):
         return None
@@ -94,28 +93,28 @@ def save_state(state: dict) -> None:
 # write_pred(rel_path, scope) -> bool: required for mutating tools (Edit/Write/MultiEdit).
 RULES: dict[str, dict] = {
     "default": {
-        "tools": {"Read", "Grep", "Glob", "Skill"},
+        "tools": {"Read", "Grep", "Glob", "Skill", "ToolSearch"},
     },
     "assume": {
-        "tools": {"Read", "Grep", "Glob", "Skill", "Write", "MultiEdit"},
+        "tools": {"Read", "Grep", "Glob", "Skill", "Write", "MultiEdit", "ToolSearch"},
         "write_pred": lambda rel, scope: rel.startswith("note/"),
     },
     "validate": {
-        "tools": {"Skill"},
+        "tools": {"Read", "Grep", "Glob", "Skill", "ToolSearch"},
     },
     "validate-mark": {
-        "tools": set(),
+        "tools": {"ToolSearch"},
     },
     "propose": {
-        "tools": {"Read", "Grep", "Glob", "Skill", "Write", "MultiEdit"},
+        "tools": {"Read", "Grep", "Glob", "Skill", "Write", "MultiEdit", "ToolSearch"},
         "write_pred": lambda rel, scope: rel.startswith("plan/"),
     },
     "act": {
-        "tools": {"Read", "Grep", "Glob", "Skill", "Edit", "Write", "MultiEdit", "Bash"},
+        "tools": {"Read", "Grep", "Glob", "Skill", "Edit", "Write", "MultiEdit", "Bash", "ToolSearch"},
         "write_pred": lambda rel, scope: (not rel.startswith("note/")) and (rel in scope),
     },
     "act-mark": {
-        "tools": set(),
+        "tools": {"ToolSearch"},
     },
 }
 
@@ -129,6 +128,16 @@ def deny(reason: str) -> None:
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "permissionDecision": "deny",
+            "permissionDecisionReason": reason,
+        }
+    }))
+
+
+def ask(reason: str) -> None:
+    sys.stdout.write(json.dumps({
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "ask",
             "permissionDecisionReason": reason,
         }
     }))
@@ -157,6 +166,22 @@ def check_act_preconditions(plan_arg: str, root: Path) -> str | None:
     return None
 
 
+def ask_validate_mark(tool_name: str, tool_input: dict) -> bool:
+    if tool_name != "Skill" or tool_input.get("skill") != "validate-mark":
+        return False
+    args = (tool_input.get("args") or "").strip()
+    ask(f"Confirm: mark {args} as validated:true")
+    return True
+
+
+def ask_act_mark(tool_name: str, tool_input: dict) -> bool:
+    if tool_name != "Skill" or tool_input.get("skill") != "act-mark":
+        return False
+    args = (tool_input.get("args") or "").strip()
+    ask(f"Confirm: delete plan/{args}.md")
+    return True
+
+
 def enforce(data: dict) -> None:
     tool_name = data.get("tool_name") or ""
     tool_input = data.get("tool_input") or {}
@@ -179,6 +204,12 @@ def enforce(data: dict) -> None:
         if reason:
             deny(reason)
             return
+
+    # Side-effecting mark skills: prompt the user per-invocation.
+    if ask_validate_mark(tool_name, tool_input):
+        return
+    if ask_act_mark(tool_name, tool_input):
+        return
 
     # Mutating tools: path predicate
     if tool_name in MUTATING_TOOLS:
@@ -232,45 +263,57 @@ def parse_scope_from_plan(plan_path: Path) -> list[str]:
     return scope if isinstance(scope, list) else []
 
 
+def apply_validate_mark(skill: str, args: str, root: Path) -> bool:
+    if skill != "validate-mark":
+        return False
+    target = (root / args).resolve()
+    try:
+        target.relative_to(root)
+    except ValueError:
+        return True
+    if target.exists() and flip_validated_to_true(target):
+        print(json.dumps({
+            "systemMessage": f"validated: {args}",
+            "suppressOutput": True,
+        }))
+    return True
+
+
+def apply_act_mark(skill: str, args: str, root: Path) -> bool:
+    if skill != "act-mark":
+        return False
+    target = (root / "plan" / f"{args}.md").resolve()
+    try:
+        target.relative_to(root / "plan")
+    except ValueError:
+        return True
+    if target.exists():
+        target.unlink()
+        print(json.dumps({
+            "systemMessage": f"deleted plan/{args}.md",
+            "suppressOutput": True,
+        }))
+    return True
+
+
 def handle_post_skill(data: dict) -> None:
     tool_input = data.get("tool_input") or {}
     skill = tool_input.get("skill") or ""
     args = (tool_input.get("args") or "").strip()
     root = project_root()
-    msgs: list[str] = []
 
-    if skill == "validate-mark":
-        target = (root / args).resolve()
-        try:
-            target.relative_to(root)
-        except ValueError:
-            pass
-        else:
-            if target.exists() and flip_validated_to_true(target):
-                msgs.append(f"validated: {args}")
+    # Mark skills: side effect only, no state change.
+    if apply_validate_mark(skill, args, root):
+        return
+    if apply_act_mark(skill, args, root):
+        return
 
-    elif skill == "act-mark":
-        target = (root / "plan" / f"{args}.md").resolve()
-        try:
-            target.relative_to(root / "plan")
-        except ValueError:
-            pass
-        else:
-            if target.exists():
-                target.unlink()
-                msgs.append(f"deleted plan/{args}.md")
-
+    # Real skills: record state.
     if skill == "act":
         scope = parse_scope_from_plan(root / "plan" / f"{args}.md")
     else:
         scope = []
     save_state({"skill": skill, "scope": scope})
-
-    if msgs:
-        print(json.dumps({
-            "systemMessage": "; ".join(msgs),
-            "suppressOutput": True,
-        }))
 
 
 # --- entry point -----------------------------------------------------------

@@ -17,7 +17,7 @@ Core skills:
 - `/assume`: add assumption following specific format to `note/*.md`
     - allow: read anything, write, multiwrite in `note`, do not allow bash
 - `/validate <PATH>`: ask user to validate one `note/*.md` or `plan/*.md` with supporting evidence
-    - allow: do not allow anything but skill trigger
+    - allow: read-only tools (Read, Grep, Glob) and Skill; no Bash, Edit, Write, MultiEdit
     - helper: `/validate-mark <PATH>` skill mark the target as valid using post-skill-use hook, the skill itself is dummy
         - user confirm the skill triggering
         - use 'ask' rule
