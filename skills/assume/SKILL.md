@@ -1,6 +1,6 @@
 ---
 name: assume
-description: Add an assumption to note/<NAME>.md with frontmatter listing the codebase files (vars) it is predicated on, validated:false.
+description: Add a note to note/<NAME>.md with frontmatter listing the codebase files (vars) it is predicated on, validated:false.
 ---
 
 You are inside `/assume`. Write one note file under `note/`, named after the assumption topic.

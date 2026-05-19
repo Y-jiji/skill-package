@@ -96,7 +96,8 @@ RULES: dict[str, dict] = {
         "tools": {"Read", "Grep", "Glob", "Skill", "ToolSearch"},
     },
     "assume": {
-        "tools": {"Read", "Grep", "Glob", "Skill", "Write", "MultiEdit", "ToolSearch"},
+        "tools": {"Read", "Grep", "Glob", "Skill", "Write", 
+                  "MultiEdit", "ToolSearch", "WebSearch", "WebFetch"},
         "write_pred": lambda rel, scope: rel.startswith("note/"),
     },
     "validate": {
