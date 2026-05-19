@@ -1,7 +1,15 @@
 #!/usr/bin/env python3
-"""PostToolUse hook: flip `validated: false` on notes whose `vars` includes the edited file.
+"""PostToolUse hook: enforce `validated: false` and propagate invalidation.
 
-Reads PostToolUse JSON on stdin. Scans `note/**/*.md` under $CLAUDE_PROJECT_DIR.
+Fires on Edit|Write|MultiEdit. Two responsibilities:
+
+1. If the edited file is under `plan/` or `note/`, normalize its leading
+   frontmatter `validated:` to `false` (overrides any `true` the agent wrote,
+   and injects `validated: false` if the field is missing). This makes
+   `/validate-mark` the only path to `validated: true`.
+2. Transitively flip `validated: true -> false` on every note/plan whose
+   `vars` chain reaches the edited file. The graph is: `note.vars -> code`
+   and `plan.vars -> note` (plus any direct edits to a note/plan).
 """
 from __future__ import annotations
 
@@ -10,6 +18,12 @@ import os
 import re
 import sys
 from pathlib import Path
+
+
+def _strip_quotes(s: str) -> str:
+    if len(s) >= 2 and ((s[0] == s[-1] == '"') or (s[0] == s[-1] == "'")):
+        return s[1:-1]
+    return s
 
 
 def parse_frontmatter(text: str) -> dict | None:
@@ -23,7 +37,6 @@ def parse_frontmatter(text: str) -> dict | None:
     pending_key: str | None = None
     pending_list: list | None = None
     for raw in block.split("\n"):
-        # Continue an open block-list.
         if pending_key is not None:
             m = re.match(r"^\s*-\s+(.*)$", raw)
             if m:
@@ -49,10 +62,41 @@ def parse_frontmatter(text: str) -> dict | None:
     return fm
 
 
-def _strip_quotes(s: str) -> str:
-    if len(s) >= 2 and ((s[0] == s[-1] == '"') or (s[0] == s[-1] == "'")):
-        return s[1:-1]
-    return s
+def set_validated_false(path: Path) -> bool:
+    """Force `validated: false` in the file's leading frontmatter.
+
+    Flips `validated: true` -> `false`; injects the field if absent;
+    leaves an existing `validated: false` (or any other non-true value) alone.
+    Returns True iff the file was modified.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    if not text.startswith("---\n"):
+        return False
+    end = text.find("\n---", 4)
+    if end == -1:
+        return False
+    head, body = text[: end + 4], text[end + 4 :]
+
+    new_head, n = re.subn(
+        r"(?m)^(\s*validated:\s*)(true|True|TRUE)\s*$",
+        r"\1false",
+        head,
+        count=1,
+    )
+    if n:
+        path.write_text(new_head + body, encoding="utf-8")
+        return True
+
+    if re.search(r"(?m)^\s*validated:\s*\S", head):
+        return False  # already set to a non-true value; leave it
+
+    insert_at = head.rfind("\n---")
+    new_head = head[:insert_at] + "\nvalidated: false" + head[insert_at:]
+    path.write_text(new_head + body, encoding="utf-8")
+    return True
 
 
 def main() -> None:
@@ -71,45 +115,51 @@ def main() -> None:
     except ValueError:
         return
 
-    notes_dir = root / "note"
-    if not notes_dir.is_dir():
-        return
+    # Index every note and plan by relative path.
+    indexed: dict[str, tuple[Path, dict]] = {}
+    for sub in ("note", "plan"):
+        base = root / sub
+        if not base.is_dir():
+            continue
+        for f in base.rglob("*.md"):
+            try:
+                text = f.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            fm = parse_frontmatter(text)
+            if fm is None:
+                continue
+            indexed[f.relative_to(root).as_posix()] = (f, fm)
+
+    # BFS: the edited file invalidates anything whose `vars` reach it.
+    invalidated: set[str] = set()
+    if edited_rel in indexed:
+        invalidated.add(edited_rel)
+    frontier = {edited_rel}
+    while frontier:
+        next_frontier: set[str] = set()
+        for rel, (_, fm) in indexed.items():
+            if rel in invalidated:
+                continue
+            vars_list = fm.get("vars")
+            if not isinstance(vars_list, list):
+                continue
+            if any(v in frontier for v in vars_list):
+                invalidated.add(rel)
+                next_frontier.add(rel)
+        frontier = next_frontier
 
     flipped: list[str] = []
-    for note in notes_dir.rglob("*.md"):
-        try:
-            text = note.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        fm = parse_frontmatter(text)
-        if not fm:
-            continue
-        vars_list = fm.get("vars")
-        if not isinstance(vars_list, list) or edited_rel not in vars_list:
-            continue
-        # Only touch the `validated:` line inside the leading frontmatter block.
-        if not text.startswith("---\n"):
-            continue
-        end = text.find("\n---", 4)
-        if end == -1:
-            continue
-        head, body = text[: end + 4], text[end + 4 :]
-        new_head, n = re.subn(
-            r"(?m)^(\s*validated:\s*)(true|True|TRUE)\s*$",
-            r"\1false",
-            head,
-            count=1,
-        )
-        if n == 0:
-            continue
-        note.write_text(new_head + body, encoding="utf-8")
-        flipped.append(note.relative_to(root).as_posix())
+    for rel in sorted(invalidated):
+        path, _ = indexed[rel]
+        if set_validated_false(path):
+            flipped.append(rel)
 
     if flipped:
         print(
             json.dumps(
                 {
-                    "systemMessage": f"Marked stale: {', '.join(flipped)}",
+                    "systemMessage": f"validated:false set on: {', '.join(flipped)}",
                     "suppressOutput": True,
                 }
             )
