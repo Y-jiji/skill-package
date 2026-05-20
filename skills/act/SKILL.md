@@ -21,7 +21,14 @@ Third, match current codebase state:
 
 + Usually, you do not need extra exploration after you start editing. 
 + Edit only files in the plan's `scope`. `note/*` is always denied.
-+ For supported-language files, downgrade any touching item's validated docblock in the same Edit transaction.
++ For supported-language files, downgrade any touching item's validated docblock in the same Edit transaction. Format by file extension:
+    - Format for `.c`/`.h`/`.cpp`/`.cc`/`.cxx`/`.hpp`/`.hh`/`.hxx`: [CPP](CPP.md)
+    - Format for `.java`: [JAVA](JAVA.md)
+    - Format for `.js`/`.jsx`/`.mjs`/`.cjs`: [JS](JS.md)
+    - Format for `.py`: [PY](PYTHON.md)
+    - Format for `.rs`: [RS](RUST.md)
+    - Format for `.ts`: [TS](TS.md)
+    - Format for `.tsx`: [TSX](TSX.md)
 
 ## After Editing
 

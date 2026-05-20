@@ -142,7 +142,7 @@ class DocblockGuard:
                     f"  rule B — '{name}' body changed (item L{item_line}); "
                     f"downgrade docblock at L{doc_line}"
                 )
-            lines.append(f"  see skills/act/lang/{spec.name}.md")
+            lines.append(f"  see skills/act/{spec.name.upper()}.md")
             return ("deny", "\n".join(lines)), changed
         return None, changed
 

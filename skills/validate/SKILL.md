@@ -1,8 +1,6 @@
 ---
 name: validate
 description: Ask the user to validate one note/*.md, plan/*.md, or a code file's per-item docblocks with supporting evidence; on confirmation, invoke /validate-mark.
-mode_enter: validate
-mode_ability: Read any file; safe-bash subset (same allow-list as /assume — hard cap 6 args, rejects compound/pipe/redirect/substitution); Skill invocations allowed (validate-mark and act-mark gated by Ask). No Write, Edit, WebFetch, or WebSearch — the only mutating action available is invoking another skill.
 ---
 
 You are inside `/validate`. The argument is a path: `note/<NAME>.md`, `plan/<NAME>.md`, or `path/to/file.ext` (a code file in a supported language — see `skills/validate-mark/lang/`).

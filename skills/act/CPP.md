@@ -1,9 +1,9 @@
-# Docblock downgrade rule — C / C++
+# Docblock format — C / C++
 
 Extensions: `.c .h .cpp .cc .cxx .hpp .hh .hxx`
 Items: `function_definition`, `class_specifier`, `struct_specifier`.
 
-- **Validated form**: a block comment beginning with `/**`. (Doxygen-style.)
+- **Validated form**: a block comment beginning with `/**` (Doxygen-style).
 - **Unvalidated form**: any block comment that does NOT begin with `/**` — typically `/* ... */`.
 - Attachment: the comment immediately preceding the item, skipping `[[attribute]]` specifiers.
 
@@ -18,7 +18,7 @@ Before:
         return r.w * r.h;
     }
 
-After (you changed the body, so downgrade in the SAME Edit):
+After (body changed, so downgrade in the SAME Edit):
 
     /*
      * Computes the area of a rectangle.
@@ -27,13 +27,17 @@ After (you changed the body, so downgrade in the SAME Edit):
         return r.w * r.h * scale_factor();
     }
 
-Rewrite: drop one star from the opening — `/**` becomes `/*`. The trailing `*/` is unchanged. The body of the comment is left alone (only the marker changes).
+Rewrite: drop one star from the opening — `/**` becomes `/*`. The trailing `*/` is unchanged. The body of the comment is left alone.
 
-The hook rejects the Edit until both the body change and the marker downgrade appear in the same transaction.
+The PreToolUse guard rejects until both the body change and the marker downgrade land in the same transaction.
+
+## Auto-upgrade by `/validate-mark`
+
+`/validate-mark path/to/file.cpp` (or `::name`) rewrites every unvalidated `/* … */` docblock attached to a target item into a `/** … */` validated docblock by adding one star to the opener. See `skills/validate-mark/lang/cpp.md`.
 
 ## Write a docblock
 
-A soft prose convention. The hook only enforces marker form; this section describes what to write *inside* an unvalidated `/* ... */` docblock.
+Prose convention for what to write inside an unvalidated `/* … */` docblock.
 
 ### Functions / methods
 

@@ -1,11 +1,11 @@
-# Docblock downgrade rule — Python
+# Docblock format — Python
 
 Extensions: `.py`
 Items: `function_definition`, `class_definition`.
 
 - **Validated form**: a docstring — the first statement of the function/class body is a triple-quoted string (`"""..."""` or `'''...'''`).
-- **Unvalidated form**: any other comment style. `#` line comments anywhere are NOT tracked by the docblock hook — only the docstring is.
-- Attachment: the first statement of the body (if it is a triple-quoted string literal).
+- **Unvalidated form**: a `#` line-comment run immediately preceding the def/class (modulo decorators). `Lang._attach` surfaces it when no inline docstring exists.
+- Attachment: first body statement (if a string literal), else the preceding `#` run.
 
 ## When you edit an item's body, downgrade its docstring in the same Edit
 
@@ -15,7 +15,7 @@ Before:
         """Parse a single TSV record into a tuple."""
         return tuple(line.rstrip("\n").split("\t"))
 
-After (you changed the body, so remove the docstring; restate the prose as `#` comments if you want to keep it visible):
+After (body changed, so remove the docstring; restate the prose as `#` comments if you want to keep it):
 
     def parse_record(line):
         # Parse a single TSV record into a tuple.
@@ -23,15 +23,15 @@ After (you changed the body, so remove the docstring; restate the prose as `#` c
 
 Rewrite: delete the docstring statement (the triple-quoted string at the top of the body). You may optionally rewrite the prose as `#` lines inside or above the function — `#` comments are unvalidated and the hook allows them freely.
 
-The hook rejects the Edit until the body change and the docstring removal appear in the same transaction.
+The PreToolUse guard rejects the Edit until the body change and the docstring removal land in the same transaction.
 
-## v1 limitation: `/validate-mark` does not auto-upgrade Python
+## Auto-upgrade by `/validate-mark`
 
-Python's two forms live in different places (docstring inside body vs. `#` line comments elsewhere), so the upgrade is structural — not a marker swap. `/validate-mark path/to/file.py` reports `no eligible docblocks to upgrade` and makes no changes. To validate Python items, the user manually adds a docstring as the first statement of each function/class body (a direct user edit does not trigger `hooks/docblock.py`).
+`/validate-mark path/to/file.py` (or `::name`) structurally rewrites each eligible `#` run into a docstring per `skills/validate-mark/lang/python.md` Case A / B / C.
 
 ## Write a docblock
 
-A soft prose convention. The hook only enforces marker form (Rule A forbids the agent from adding new docstrings); this section describes what to write *inside* `#` line comments above the `def` / `class`. When a parameter or return is untyped, "description NOT covered by type" simply means a full description.
+Prose convention for what to write inside the `#` comment block above a `def`/`class`. The hook only enforces marker form (Rule A); this section describes content.
 
 ### Functions / methods
 

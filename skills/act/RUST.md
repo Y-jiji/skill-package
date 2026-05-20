@@ -1,4 +1,4 @@
-# Docblock downgrade rule — Rust
+# Docblock format — Rust
 
 Extensions: `.rs`
 Items: `function_item`, `impl_item`, `struct_item`, `enum_item`, `trait_item`, `mod_item`.
@@ -16,7 +16,7 @@ Before:
         (i + 1) % len
     }
 
-After (you changed the body, so downgrade in the SAME Edit):
+After (body changed, so downgrade in the SAME Edit):
 
     // Returns the next index, wrapping at `len`.
     pub fn next(i: usize, len: usize, step: usize) -> usize {
@@ -25,11 +25,15 @@ After (you changed the body, so downgrade in the SAME Edit):
 
 Rewrite: for every line in the docblock run, replace leading `///` with `//`. Inner doc comments (`//!`) and block doc-comments (`/** ... */`) follow the analogous rule (`//!` → `//`, `/**` → `/*`).
 
-The hook rejects the Edit until the body change and the marker downgrade appear in the same transaction.
+The PreToolUse guard rejects until the body change and the marker downgrade are in the same transaction.
+
+## Auto-upgrade by `/validate-mark`
+
+`/validate-mark path/to/file.rs` (or `::name`) rewrites every unvalidated `//` line in an attached docblock run into `///`. See `skills/validate-mark/lang/rust.md`.
 
 ## Write a docblock
 
-A soft prose convention. The hook only enforces marker form; this section describes what to write *inside* an unvalidated `//` line-comment run.
+Prose convention for what to write inside an unvalidated `//` line-comment run.
 
 ### Functions / methods
 
@@ -49,7 +53,7 @@ Template:
     fn method(&self, a: A, out: &mut B) -> Result<()> {
     }
 
-Example (the user's `Tree::dfs`):
+Example:
 
     impl Tree {
         // Search a tree for the left-most predicated leaf element \
@@ -58,14 +62,7 @@ Example (the user's `Tree::dfs`):
         // `@return`: whether such a predicated leaf exists \
         // O(n) over the number of leaves; stack depth bounded by tree height
         fn dfs(&self, p: &impl Fn(&T) -> bool, path: &mut Vec<LeftRight>) -> bool {
-            match self {
-                Tree::Children(l, r) => {
-                    path.push(LeftRight::L); if l.dfs(p, path) { return true } path.pop();
-                    path.push(LeftRight::R); if r.dfs(p, path) { return true } path.pop();
-                    false
-                }
-                Tree::Leaf(v) => p(v),
-            }
+            ...
         }
     }
 
@@ -76,40 +73,11 @@ Example (the user's `Tree::dfs`):
 3. Invariants the type maintains.
 4. Layout / size / `repr` notes (where relevant).
 
-Example:
-
-    // Fixed-capacity ring buffer of bytes \
-    // `head`: read index, monotonically increasing modulo `cap` \
-    // `tail`: write index; `head <= tail` at all times \
-    // `buf`: storage; `cap` is a power of two so wrap is bitmasked \
-    // Invariant: `tail - head <= cap` \
-    // size_of::<RingBuf>() == 24 (no padding under repr(C))
-    #[repr(C)]
-    pub struct RingBuf {
-        pub head: u32,
-        pub tail: u32,
-        pub cap: u32,
-        pub buf: *mut u8,
-    }
-
 ### `enum`
 
 1. One-line brief.
 2. One line per variant, `` `Variant`: ``, when this variant applies vs. its siblings.
 3. Invariants across variants (if any).
-
-Example:
-
-    // Result of a partial parse \
-    // `Done(v)`: parsed completely; `v` is the resulting value \
-    // `Partial(rest)`: parser ran out of input; `rest` is the unconsumed tail \
-    // `Err(e)`: input was malformed; parser position is `e.pos` \
-    // The variants are total — no other outcome is reachable.
-    pub enum ParseOutcome<V> {
-        Done(V),
-        Partial(String),
-        Err(ParseError),
-    }
 
 ### `trait`
 
@@ -117,21 +85,6 @@ Example:
 2. Contract: what implementors must guarantee (one line per obligation).
 3. When to implement vs. when to use as a bound.
 
-Example:
-
-    // Stable identifier mintable from an in-memory value \
-    // Implementors guarantee: `id(x) == id(y)` iff `x` and `y` are observably equal \
-    // Implementors guarantee: `id(x)` is constant for the lifetime of `x` \
-    // Implement for owned values; use as a bound when you need set/map keys
-    pub trait StableId {
-        fn id(&self) -> u64;
-    }
-
 ### `type` alias
 
 One-line brief explaining why the alias exists — the semantic distinction from the underlying type.
-
-Example:
-
-    // Monotonic millisecond timestamp from the process-start clock (not wall time)
-    pub type MonotonicMs = u64;
