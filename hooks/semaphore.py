@@ -214,6 +214,8 @@ def enforce(data: dict) -> None:
 
     rules = RULES.get(skill)
     if rules is None:
+        if tool_name != "Skill":
+            deny(f"unknown mode '{skill}'; only Skill calls allowed until a known mode is set")
         return  # unknown mode — pass through
 
     if tool_name not in rules.get("tools", set()):
