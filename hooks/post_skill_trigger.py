@@ -29,7 +29,8 @@ from pathlib import Path
 
 # PostToolUse(Skill) handler. Dispatches: \
 # - validate-mark → note/plan: Items.validate; code file: docblock marker rewrite \
-# - act-mark → delete plan/<args>.md \
+# - act-mark → delete plan/<args>.md, then reset semaphore to default \
+# - undocumented → walk path, emit items whose status is none/unvalidated \
 # - any other skill → save_state(mode=skill, scope=Items.scope(plan) when /act)
 class PostMark:
     def __init__(self, skill, args, root):
@@ -42,6 +43,9 @@ class PostMark:
             self._apply_validate_mark()
         elif self._skill == "act-mark":
             self._apply_act_mark()
+            save_state({"mode": "", "scope": []})
+        elif self._skill == "undocumented":
+            self._apply_undocumented()
         else:
             sys.path.insert(0, str(Path(__file__).resolve().parent))
             from items import Items
@@ -57,6 +61,39 @@ class PostMark:
         if target.exists():
             target.unlink()
             self._notify(f"deleted plan/{self._args}.md")
+
+    def _apply_undocumented(self):
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from items import Lang, CodeDoc
+        arg = self._args or "."
+        target = (self._root / arg).resolve()
+        if not target.exists():
+            self._notify(f"undocumented: {arg}: no such file or directory")
+            return
+        files = []
+        if target.is_dir():
+            for f in sorted(target.rglob("*")):
+                if f.is_file() and Lang.for_path(str(f)) is not None:
+                    files.append(f)
+        else:
+            if Lang.for_path(str(target)) is None:
+                self._notify(f"undocumented: {arg}: unsupported file type")
+                return
+            files.append(target)
+        lines = []
+        for f in files:
+            try:
+                rel = f.relative_to(self._root).as_posix()
+            except ValueError:
+                rel = str(f)
+            for item in CodeDoc(f).items():
+                state = item.status()
+                if state in {"none", "unvalidated"}:
+                    lines.append(f"{rel}::{item.name} status={state}")
+        if not lines:
+            self._notify(f"undocumented {arg}: no items need attention")
+            return
+        self._notify("undocumented items:\n" + "\n".join(lines))
 
     def _apply_validate_mark(self):
         item_filter = None

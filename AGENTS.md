@@ -33,6 +33,9 @@ Core skills:
     - helper: `/act-mark <ARG>` skill deletes `plan/<ARG>.md` using post-skill-use hook, the skill itself is dummy
         - user confirm the skill triggering
         - use 'ask' rule
+        - on success, resets the semaphore to default (mode `""`, empty scope) so the next tool call lands in default rules
+- `/undocumented [<PATH>]`: list code items whose `status()` is `"none"` or `"unvalidated"` under `<PATH>` (file or directory, defaulting to the project root). The skill itself is dummy; the post-skill-use hook in `hooks/post_skill_trigger.py` walks via `items.CodeDoc(...).items()` and emits a single `systemMessage` of `<file>::<item> status=<state>` lines.
+    - allow: read-only tools and Skill invocations; nothing else (no state change, no mode flip)
 
 Core hooks: 
 - `hooks/invalidate.py`: mark affected `note/*.md` and `plan/*.md` stale when a file in their `vars` is touched
