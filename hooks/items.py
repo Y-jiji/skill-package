@@ -310,6 +310,11 @@ class Lang:
 
     @staticmethod
     def _item_name(node):
+        if node.type == "impl_item":
+            target = Lang._impl_target_name(node)
+            if target is not None:
+                return target
+            return f"<anonymous@{node.start_point[0] + 1}>"
         n = node.child_by_field_name("name")
         if n is not None and n.text is not None:
             return n.text.decode("utf-8", errors="replace")
@@ -323,6 +328,19 @@ class Lang:
                             and inner.text is not None:
                         return inner.text.decode("utf-8", errors="replace")
         return f"<anonymous@{node.start_point[0] + 1}>"
+
+    @staticmethod
+    def _impl_target_name(node):
+        type_node = node.child_by_field_name("type")
+        if type_node is None:
+            return None
+        stack = [type_node]
+        while stack:
+            n = stack.pop()
+            if n.type == "type_identifier" and n.text is not None:
+                return n.text.decode("utf-8", errors="replace")
+            stack.extend(reversed(n.children))
+        return None
 
 
 # One tracked item inside a CodeDoc — its name plus a validated flag \

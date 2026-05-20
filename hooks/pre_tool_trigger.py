@@ -295,6 +295,8 @@ RULES: dict[str, list[object]] = {
     "validate": list(_BASE) + list(_BASH_SAFE),
     "propose": list(_BASE) + [
         Matcher(Write(r"plan/.*\.md"), "Allow"),
+        Matcher(WebFetch(), "Deny", "WebFetch info should be consolidated to note/ via assume skill"),
+        Matcher(WebSearch(), "Deny", "WebSearch info should be consolidated to note/ via assume skill"),
     ],
     "act": list(_BASE) + [
         Matcher(Write(r"note/.*"), "Deny"),
