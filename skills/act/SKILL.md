@@ -1,6 +1,8 @@
 ---
 name: act
 description: Execute plan/<ARG>.md within its declared scope. Fence enforces preconditions and scope; on completion, invoke /act-mark to delete the plan.
+mode_enter: act
+mode_ability: Read any file; Write/Edit allowed iff `file_path` ∈ the plan's declared `scope` (live-read from `.claude/semaphore.json` on each check); Write/Edit on `note/*` denied; safe-bash subset; Skill invocations allowed. Precondition checked at invocation: the plan AND every note in its `vars` must be validated.
 ---
 
 You are inside `/act`. The argument `<ARG>` is a plan name.

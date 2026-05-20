@@ -2,13 +2,22 @@
 
 Extensions: `.py`
 
-**Not auto-rewritten in v1.** Python's validated form is a docstring (the first statement of a function/class body), while unvalidated comments (`#` lines) live elsewhere. The upgrade is structural — it moves text into the body — not a marker swap, so `hooks/semaphore.py`'s `_upgrade_marker` does not handle it.
+Python's validated form is a docstring (the first statement of a function/class body); the unvalidated form is a `#` comment run on lines immediately preceding the `def`/`class` (modulo decorators). `/validate-mark path/to/file.py` and `/validate-mark path/to/file.py::name` convert the comment run into a docstring **inside** the body — a structural rewrite, not a marker swap.
 
-`/validate-mark path/to/file.py` and `/validate-mark path/to/file.py::name` both report `no eligible docblocks to upgrade` and make no changes.
+For each `function_definition` / `class_definition` selected (all items, or the filter-matched item):
 
-To validate Python items:
+- **Case A — body already starts with a string literal**: item is already in validated form; no change.
+- **Case B — body does NOT start with a string literal, AND a `#` comment run is the immediate preceding sibling of the def/class** (decorators OK): convert.
+    - Read the run of consecutive line-comment siblings whose lines contain only the comment (no inline code before the `#`).
+    - Strip the `#` prefix and exactly one following space (when present) from each line; blank `#`-stripped lines remain blank; relative indent of stripped content is preserved.
+    - Join the stripped lines into the docstring body.
+    - Emit a triple-quoted string as a new first statement of the body, indented at the body's existing indent level.
+    - Delete the original `#` comment lines (entire lines, including their trailing newlines).
+    - Both edits land in the same write to the file.
+- **Case C — body does NOT start with a string literal AND there is no preceding `#` comment run**: nothing to upgrade. The aggregate result message is `no eligible docblocks to upgrade in <file>`.
 
-1. The user manually adds a docstring as the first statement of the function/class body. A direct user edit does not trigger `hooks/post_write_trigger.py` (the hook only runs on the agent's Edit/Write tool calls), so this is allowed.
-2. Once every function/class in the file has a docstring, any note or plan whose `vars` / `scope` includes the file passes `check_all_items_validated` and `/validate-mark` will flip the note/plan to `validated: true`.
+Decorators and `_CSTYLE_WRAPPERS` (`attribute_specifier`, `annotation`, etc.) between the `#` run and the def/class do not break the attachment: the parser walks out of any enclosing `decorated_definition` so the `#` run above the wrapper is still seen.
 
-Auto-upgrade for Python is a v2 candidate; the implementation would need to read `#` lines as a comment run, strip the `#` prefix, and emit a triple-quoted docstring at body-indent level.
+Quoting: emits `"""` by default. If the joined body contains `"""`, falls back to `'''`. If both are present, uses `"""` and escapes each `"""` occurrence as `\"\"\"` inside the body.
+
+The downgrade direction (`hooks/docblock.py` Rule B when an agent edits a body) is unchanged — see `skills/act/lang/python.md`. The "Write a docblock" prose convention there describes what to write inside the `#` block that this upgrade will convert.

@@ -1,15 +1,41 @@
 ---
 name: assume
-description: Add a note to note/<NAME>.md with frontmatter listing the codebase files (vars) it is predicated on, validated:false.
+description: Trigger this when you have a question/confusion. Enter `assume` mode to explore and write a note to `note/<NAME>.md`. 
 ---
 
-You are inside `/assume`. Write one note file under `note/`, named after the assumption topic.
+Contribute one note `note/<NAME>.md`
 
-The note's frontmatter must include:
+## Before Writing
 
-- `vars`: list of codebase file paths the assumption is predicated on. Every path must be a real file in the repo.
-- `validated: false`.
+First, focus the scope: 
 
-The note body is a short, citable claim. State only what can be verified by reading the listed `vars` files.
+- What is your question/confusion? Answer it as [Answer A]
+- How answering this contribute to your current task? Answer it as [Answer B]
+- Present [Answer A] and [Answer B] to the user and proceed to second step. 
 
-You may write or multi-edit inside `note/`. You may not touch anything else, and you may not use Bash. The fence will deny anything off-spec.
+Second, reframe the question to [Reframed Question]. 
+- Reference [Question Conversion](FRAME.md)
+- Present [Reframed Question]
+- Base on [Reframed Question] type, chat with the user or proceed directly. 
+
+## Frontmatter
+
+Put the following in yaml frontmatter
+
+- `vars`: a list of items that affects the answer to [Reframed Question]. 
+    - If the file extension is listed in the following, cite item:
+        - Format for `.py`: [PY](PYTHON.md)
+        - Format for `.cpp`/`.hpp`: [CPP](CPP.md)
+        - Format for `.rs`: [RS](RUST.md)
+    - whole-file is an item otherwise. 
+- `validated: false`
+
+## Body
+
+Choose one template based on the reframing: 
+- It is a yes/no question: [Predicate](PREDICATE.md)
+- It is a design decision: [Design](DESIGN.md)
+
+## After Writing
+
+Invoke skill `/validate note/<NAME>.md` directly. 

@@ -49,11 +49,13 @@ import sys
 from pathlib import Path
 
 
-# A markdown item (note/X.md or plan/X.md). Validated state is the \
-# frontmatter `validated:` field; deps are the frontmatter `vars` list. \
-# Plans additionally carry a `scope` list, exposed via `scope()`. \
-# `path`: filesystem path to the markdown file (Path or str).
 class Note:
+    """
+    A markdown item (note/X.md or plan/X.md). Validated state is the \
+    frontmatter `validated:` field; deps are the frontmatter `vars` list. \
+    Plans additionally carry a `scope` list, exposed via `scope()`. \
+    `path`: filesystem path to the markdown file (Path or str).
+    """
     def __init__(self, path):
         self._path = Path(path)
 
@@ -147,11 +149,13 @@ class Note:
         return s
 
 
-# Per-language parsing config + tree-sitter helpers. One instance per \
-# supported language; the class-level `for_path` returns the instance \
-# whose `exts` matches the file's suffix, or None for unsupported files. \
-# Parsers are constructed lazily (and cached) on first `parser()` call.
 class Lang:
+    """
+    Per-language parsing config + tree-sitter helpers. One instance per \
+    supported language; the class-level `for_path` returns the instance \
+    whose `exts` matches the file's suffix, or None for unsupported files. \
+    Parsers are constructed lazily (and cached) on first `parser()` call.
+    """
     _ALL = None  # populated lazily
 
     _CSTYLE_WRAPPERS = {
@@ -240,7 +244,7 @@ class Lang:
             self._parser = None
         return self._parser
 
-    def is_validated(self, text):
+    def is_validated(self, text, form="docstring"):
         if self.validated_pred == "cstyle_double_star":
             return text.startswith(b"/**")
         if self.validated_pred == "rust_outer_doc":
@@ -255,7 +259,11 @@ class Lang:
                 return False
             return saw_any
         if self.validated_pred == "python_docstring_present":
-            return True
+            # Docstrings start with a string-quote (single, double, or triple);
+            # comment runs start with `#`. Text-based detection so callers that
+            # don't pass `form` (e.g. the docblock guard in post_write_trigger.py)
+            # still work correctly with the new comment_run attachment.
+            return not text.lstrip().startswith(b"#")
         return False
 
     def enumerate_items(self, tree, src):
@@ -287,7 +295,8 @@ class Lang:
                 sib = sib.prev_sibling
             if sib is not None and sib.type == "comment":
                 return (sib.start_byte, sib.end_byte,
-                        bytes(src[sib.start_byte:sib.end_byte]))
+                        bytes(src[sib.start_byte:sib.end_byte]),
+                        "docstring")
             return None
         if self.attachment == "preceding_run_rust":
             sib = node.prev_sibling
@@ -305,20 +314,40 @@ class Lang:
                 return None
             run.reverse()
             start, end = run[0].start_byte, run[-1].end_byte
-            return (start, end, bytes(src[start:end]))
+            return (start, end, bytes(src[start:end]), "docstring")
         if self.attachment == "python_docstring":
             body = node.child_by_field_name("body")
-            if body is None:
-                return None
-            for child in body.named_children:
-                if child.type == "expression_statement":
-                    inner = child.named_children
+            if body is not None and body.named_children:
+                first = body.named_children[0]
+                if first.type == "expression_statement":
+                    inner = first.named_children
                     if inner and inner[0].type == "string":
                         s = inner[0]
                         return (s.start_byte, s.end_byte,
-                                bytes(src[s.start_byte:s.end_byte]))
-                break
-            return None
+                                bytes(src[s.start_byte:s.end_byte]),
+                                "docstring")
+            # No inline docstring; look for a preceding `#` comment run.
+            # Decorated function: walk out of decorated_definition so we
+            # see the wrapper's prev_sibling (the decorator(s) are inside).
+            target = node
+            while (target.parent is not None
+                   and target.parent.type == "decorated_definition"):
+                target = target.parent
+            sib = target.prev_sibling
+            run = []
+            while sib is not None and sib.type == "comment":
+                line_start = src.rfind(b"\n", 0, sib.start_byte) + 1
+                pre = src[line_start:sib.start_byte]
+                if any(c != 0x20 and c != 0x09 for c in pre):
+                    break
+                run.append(sib)
+                sib = sib.prev_sibling
+            if not run:
+                return None
+            run.reverse()
+            start = run[0].start_byte
+            end = run[-1].end_byte
+            return (start, end, bytes(src[start:end]), "comment_run", node)
         return None
 
     @staticmethod
@@ -357,11 +386,13 @@ class Lang:
         return None
 
 
-# One tracked item inside a CodeDoc — its name plus a validated flag \
-# computed from its docblock (per skills/validate-mark/lang/<lang>.md). \
-# Code items have no deps and cannot be flipped directly; their \
-# validation state is mutated only by editing the file.
 class CodeItem:
+    """
+    One tracked item inside a CodeDoc — its name plus a validated flag \
+    computed from its docblock (per skills/validate-mark/lang/<lang>.md). \
+    Code items have no deps and cannot be flipped directly; their \
+    validation state is mutated only by editing the file.
+    """
     def __init__(self, name, state):
         self.name = name
         self._state = state
@@ -376,11 +407,13 @@ class CodeItem:
         return False
 
 
-# A code file. `path` is the filesystem path to the file. `items()` \
-# enumerates the tracked items inside (functions/classes per language), \
-# each as a CodeItem. The doc's own `status()` is True iff every item \
-# is validated (or the file has no parseable items).
 class CodeDoc:
+    """
+    A code file. `path` is the filesystem path to the file. `items()` \
+    enumerates the tracked items inside (functions/classes per language), \
+    each as a CodeItem. The doc's own `status()` is True iff every item \
+    is validated (or the file has no parseable items).
+    """
     def __init__(self, path):
         self._file = Path(path)
 
@@ -401,7 +434,7 @@ class CodeDoc:
         for name, _q, _b, docblock in spec.enumerate_items(parser.parse(src_b), src_b):
             if docblock is None:
                 state = "none"
-            elif spec.is_validated(docblock[2]):
+            elif spec.is_validated(docblock[2], docblock[3]):
                 state = "validated"
             else:
                 state = "unvalidated"
@@ -432,12 +465,14 @@ class CodeDoc:
         return False
 
 
-# The project's item/dependency graph. Constructs Note and CodeDoc \
-# instances on demand and provides the cross-cutting graph operations \
-# (dependents lookup, transitive invalidation, dep-walk validation). \
-# `project_path`: project root path. Public methods are invoked from \
-# within other hook classes; no entry-point free function calls them.
 class Items:
+    """
+    The project's item/dependency graph. Constructs Note and CodeDoc \
+    instances on demand and provides the cross-cutting graph operations \
+    (dependents lookup, transitive invalidation, dep-walk validation). \
+    `project_path`: project root path. Public methods are invoked from \
+    within other hook classes; no entry-point free function calls them.
+    """
     def __init__(self, project_path):
         self._root = Path(project_path).resolve()
 

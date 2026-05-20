@@ -28,14 +28,16 @@ import sys
 from pathlib import Path
 
 
-# PostToolUse(Skill) handler. Dispatches: \
-# - validate-mark → note/plan: Items.validate; code file: docblock rewrite (mode unchanged) \
-# - act-mark → delete plan/<args>.md, then reset semaphore to default \
-# - undocumented → walk path, emit items whose status is none/unvalidated (mode unchanged) \
-# - assume / validate / propose → save_state(mode=skill, scope=[]) \
-# - act → save_state(mode="act", scope=Items.scope("plan/<args>.md")) \
-# - anything else (harness builtins, third-party) → no semaphore change
 class PostMark:
+    """
+    PostToolUse(Skill) handler. Dispatches: \
+    - validate-mark → note/plan: Items.validate; code file: docblock rewrite (mode unchanged) \
+    - act-mark → delete plan/<args>.md, then reset semaphore to default \
+    - undocumented → walk path, emit items whose status is none/unvalidated (mode unchanged) \
+    - assume / validate / propose → save_state(mode=skill, scope=[]) \
+    - act → save_state(mode="act", scope=Items.scope("plan/<args>.md")) \
+    - anything else (harness builtins, third-party) → no semaphore change
+    """
     def __init__(self, skill, args, root):
         self._skill = skill
         self._args = args
@@ -142,13 +144,14 @@ class PostMark:
         for name, _qname, _body, docblock in items:
             if item_filter is not None and name != item_filter:
                 continue
-            if docblock is None or spec.is_validated(docblock[2]):
+            if docblock is None:
                 continue
-            start, end, text = docblock
-            new_text = self._upgrade_marker(text, spec.validated_pred)
-            if new_text is None or new_text == text:
+            if spec.is_validated(docblock[2], docblock[3]):
                 continue
-            rewrites.append((start, end, new_text))
+            edits = self._upgrade_marker(spec, docblock, src_b)
+            if not edits:
+                continue
+            rewrites.extend(edits)
         if not rewrites:
             return True, f"no eligible docblocks to upgrade in {target}"
         rewrites.sort(key=lambda r: r[0], reverse=True)
@@ -158,13 +161,14 @@ class PostMark:
         target.write_bytes(bytes(out))
         return True, f"upgraded {len(rewrites)} docblock(s) in {target}"
 
-    @staticmethod
-    def _upgrade_marker(text, pred_name):
-        if pred_name == "cstyle_double_star":
+    def _upgrade_marker(self, spec, docblock, src):
+        start, end, text, form = docblock[0], docblock[1], docblock[2], docblock[3]
+        pred = spec.validated_pred
+        if pred == "cstyle_double_star":
             if text.startswith(b"/*") and not text.startswith(b"/**"):
-                return b"/**" + text[2:]
-            return None
-        if pred_name == "rust_outer_doc":
+                return [(start, end, b"/**" + text[2:])]
+            return []
+        if pred == "rust_outer_doc":
             out_lines = []
             for raw in text.split(b"\n"):
                 stripped = raw.lstrip()
@@ -175,8 +179,68 @@ class PostMark:
                     out_lines.append(raw[:ws_len] + b"///" + raw[ws_len + 2:])
                 else:
                     out_lines.append(raw)
-            return b"\n".join(out_lines)
-        return None
+            new_text = b"\n".join(out_lines)
+            if new_text == text:
+                return []
+            return [(start, end, new_text)]
+        if pred == "python_docstring_present" and form == "comment_run":
+            node = docblock[4] if len(docblock) > 4 else None
+            if node is None:
+                return []
+            return self._python_upgrade(start, end, text, node, src)
+        return []
+
+    @staticmethod
+    def _python_upgrade(run_start, run_end, run_text, node, src):
+        body = node.child_by_field_name("body")
+        if body is None or not body.named_children:
+            return []
+        first_stmt = body.named_children[0]
+        prev_nl = src.rfind(b"\n", 0, first_stmt.start_byte)
+        if prev_nl < 0:
+            indent = b""
+            insert_offset = first_stmt.start_byte
+        else:
+            indent = src[prev_nl + 1:first_stmt.start_byte]
+            insert_offset = prev_nl + 1
+        # Strip `#` prefix (and one trailing space) from each line of the run.
+        body_lines = []
+        for raw_line in run_text.split(b"\n"):
+            stripped = raw_line.lstrip()
+            if stripped.startswith(b"#"):
+                content = stripped[1:]
+                if content.startswith(b" "):
+                    content = content[1:]
+                body_lines.append(content)
+            else:
+                body_lines.append(raw_line)
+        docstring_body = b"\n".join(body_lines)
+        # Choose quoting that doesn't collide with the body.
+        if b'"""' not in docstring_body:
+            quote = b'"""'
+        elif b"'''" not in docstring_body:
+            quote = b"'''"
+        else:
+            quote = b'"""'
+            docstring_body = docstring_body.replace(b'"""', b'\\"\\"\\"')
+        # Build the docstring statement at the body's indent.
+        if b"\n" in docstring_body:
+            indented_lines = []
+            for line in docstring_body.split(b"\n"):
+                indented_lines.append(indent + line if line else b"")
+            inner = b"\n".join(indented_lines)
+            docstring = indent + quote + b"\n" + inner + b"\n" + indent + quote + b"\n"
+        else:
+            docstring = indent + quote + docstring_body + quote + b"\n"
+        # Delete entire lines that the comment run occupies (so we don't
+        # leave dangling indent or trailing newlines).
+        delete_start = src.rfind(b"\n", 0, run_start) + 1
+        nl_after = src.find(b"\n", run_end)
+        delete_end = nl_after + 1 if nl_after != -1 else len(src)
+        return [
+            (delete_start, delete_end, b""),
+            (insert_offset, insert_offset, docstring),
+        ]
 
     @staticmethod
     def _notify(msg):
@@ -189,16 +253,16 @@ class PostMark:
         }))
 
 
-# Write the state dict to `.claude/semaphore.json`.
 def save_state(state):
+    """Write the state dict to `.claude/semaphore.json`."""
     root = Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()).resolve()
     p = root / ".claude" / "semaphore.json"
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(state, indent=2), encoding="utf-8")
 
 
-# PostToolUse(Skill) entry point. Delegates to PostMark.
 def handle_skill_trigger(data):
+    """PostToolUse(Skill) entry point. Delegates to PostMark."""
     tool_input = data.get("tool_input") or {}
     root = Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()).resolve()
     PostMark(

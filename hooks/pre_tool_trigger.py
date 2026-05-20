@@ -32,14 +32,16 @@ import shlex
 import sys
 from pathlib import Path
 
-# Action wrapper: pairs a tool predicate with a verdict and optional reason. \
-# `predicate`: callable `(tool_name, tool_input) -> bool` \
-# `verdict`: "Allow", "Deny", or "Ask" \
-# `reason`: human-readable string explaining the verdict; defaults to a \
-#   constructor-derived fallback if omitted \
-# `__call__` returns `(self.verdict, reason)` when the predicate matches, \
-# else None.
 class Matcher:
+    """
+    Action wrapper: pairs a tool predicate with a verdict and optional reason. \
+    `predicate`: callable `(tool_name, tool_input) -> bool` \
+    `verdict`: "Allow", "Deny", or "Ask" \
+    `reason`: human-readable string explaining the verdict; defaults to a \
+      constructor-derived fallback if omitted \
+    `__call__` returns `(self.verdict, reason)` when the predicate matches, \
+    else None.
+    """
     @staticmethod
     def _norm(value):
         if callable(value):
@@ -57,24 +59,26 @@ class Matcher:
             return (self.verdict, self.reason)
         return None
 
-# Bash verdict class. Uniform positional match: `specs[i]` tests `tokens[i]`. \
-# On first call for a given tool_input dict, runs the safety pipeline and \
-# caches the result under `_bash_tokens` (False on safety failure, list of \
-# tokens otherwise). Subsequent Bash rules reuse the cache. \
-# Safety rejects substitution, parse errors, redirects, and compound \
-# separators; pipes are also rejected (single-command-only). \
-# `__call__` returns `(verdict, reason)` or None: \
-# - ("Deny", "...unsafe...") when tokenization fails — short-circuits before \
-#   the positional check, so it fires regardless of which Bash rule runs. \
-# - ("Deny", "...exceeds N args") when `len(tokens) - 1 > _MAX_ARGS` — same \
-#   short-circuit behavior. \
-# - ("Allow", "...") when every spec matches its positional token AND \
-#   `len(tokens) == len(specs)`. \
-# - None otherwise (token count or per-position mismatch; or `Bash()` with \
-#   zero specs against a non-empty command — try next rule). \
-# Bash takes no verdict argument: a match is always "Allow", and hard-deny \
-# reasons (safety / max-args) come from the internal checks above.
 class Bash:
+    """
+    Bash verdict class. Uniform positional match: `specs[i]` tests `tokens[i]`. \
+    On first call for a given tool_input dict, runs the safety pipeline and \
+    caches the result under `_bash_tokens` (False on safety failure, list of \
+    tokens otherwise). Subsequent Bash rules reuse the cache. \
+    Safety rejects substitution, parse errors, redirects, and compound \
+    separators; pipes are also rejected (single-command-only). \
+    `__call__` returns `(verdict, reason)` or None: \
+    - ("Deny", "...unsafe...") when tokenization fails — short-circuits before \
+      the positional check, so it fires regardless of which Bash rule runs. \
+    - ("Deny", "...exceeds N args") when `len(tokens) - 1 > _MAX_ARGS` — same \
+      short-circuit behavior. \
+    - ("Allow", "...") when every spec matches its positional token AND \
+      `len(tokens) == len(specs)`. \
+    - None otherwise (token count or per-position mismatch; or `Bash()` with \
+      zero specs against a non-empty command — try next rule). \
+    Bash takes no verdict argument: a match is always "Allow", and hard-deny \
+    reasons (safety / max-args) come from the internal checks above.
+    """
     _WRAPPERS = {"timeout", "time", "nice", "nohup", "stdbuf"}
     _DENY_TOKENS = {
         ">", "<", ">>", "<<", "<&", ">&", "<>", ">|",
@@ -122,10 +126,12 @@ class Bash:
         return tokens if tokens else None
 
 
-# Private base for path-bearing predicates. Resolves `file_path` to a \
-# project-relative POSIX path before delegating to `path_spec`. \
-# Outside-project paths always fail to match.
 class _PathPred:
+    """
+    Private base for path-bearing predicates. Resolves `file_path` to a \
+    project-relative POSIX path before delegating to `path_spec`. \
+    Outside-project paths always fail to match.
+    """
     TOOL = ""
 
     def __init__(self, path_spec):
@@ -153,9 +159,11 @@ class Edit(_PathPred):
 class Write(_PathPred):
     TOOL = "Write"
 
-# Skill tool predicate. `name_spec` matches `tool_input["skill"]`; \
-# `args_spec` matches `tool_input["args"]`.
 class Skill:
+    """
+    Skill tool predicate. `name_spec` matches `tool_input["skill"]`; \
+    `args_spec` matches `tool_input["args"]`.
+    """
     def __init__(self, name_spec=".*", args_spec=".*"):
         self._name = Matcher._norm(name_spec)
         self._args = Matcher._norm(args_spec)
@@ -166,41 +174,45 @@ class Skill:
         return bool(self._name(tool_input.get("skill") or "")
                     and self._args(tool_input.get("args") or ""))
 
-# ToolSearch tool predicate. Matches any ToolSearch call.
 class ToolSearch:
+    """ToolSearch tool predicate. Matches any ToolSearch call."""
     def __call__(self, tool_name, tool_input):
         return tool_name == "ToolSearch"
 
-# WebFetch tool predicate. `url_spec` matches `tool_input["url"]`.
 class WebFetch:
+    """WebFetch tool predicate. `url_spec` matches `tool_input["url"]`."""
     def __init__(self, url_spec=".*"):
         self._url = Matcher._norm(url_spec)
 
     def __call__(self, tool_name, tool_input):
         return tool_name == "WebFetch" and self._url(tool_input.get("url") or "")
 
-# WebSearch tool predicate. `query_spec` matches `tool_input["query"]`.
 class WebSearch:
+    """WebSearch tool predicate. `query_spec` matches `tool_input["query"]`."""
     def __init__(self, query_spec=".*"):
         self._q = Matcher._norm(query_spec)
 
     def __call__(self, tool_name, tool_input):
         return tool_name == "WebSearch" and self._q(tool_input.get("query") or "")
 
-# Agent (subagent) tool predicate. `type_spec` matches \
-# `tool_input["subagent_type"]`.
 class Agent:
+    """
+    Agent (subagent) tool predicate. `type_spec` matches \
+    `tool_input["subagent_type"]`.
+    """
     def __init__(self, type_spec=".*"):
         self._t = Matcher._norm(type_spec)
 
     def __call__(self, tool_name, tool_input):
         return tool_name == "Agent" and self._t(tool_input.get("subagent_type") or "")
 
-# `/act` precondition checker. Returns a reason string if the named plan \
-# is missing, unvalidated, or has an unvalidated dep; else None. \
-# Delegates the validated-state read and the per-dep walk to the items \
-# graph (`hooks/items.py`).
 class ActPrecondition:
+    """
+    `/act` precondition checker. Returns a reason string if the named plan \
+    is missing, unvalidated, or has an unvalidated dep; else None. \
+    Delegates the validated-state read and the per-dep walk to the items \
+    graph (`hooks/items.py`).
+    """
     def __init__(self, root):
         self._root = root
 
@@ -312,8 +324,8 @@ RULES: dict[str, list[object]] = {
     "act-mark": [Matcher(ToolSearch(), "Allow")],
 }
 
-# Read `.claude/semaphore.json`. Missing or parse error → empty state.
 def load_state():
+    """Read `.claude/semaphore.json`. Missing or parse error → empty state."""
     root = Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()).resolve()
     p = root / ".claude" / "semaphore.json"
     if not p.exists():
@@ -323,12 +335,14 @@ def load_state():
     except Exception:
         return {"mode": "", "scope": []}
 
-# PreToolUse entry point. Loads state, runs the /act precondition when \
-# applicable, then walks `RULES[mode]`. Returns `(decision, reason)` for a \
-# deny or ask outcome; returns `None` for an allow (the harness treats \
-# no-output as default-allow). The __main__ guard turns the tuple into the \
-# PreToolUse JSON payload.
 def handle_pre_tool_use(data):
+    """
+    PreToolUse entry point. Loads state, runs the /act precondition when \
+    applicable, then walks `RULES[mode]`. Returns `(decision, reason)` for a \
+    deny or ask outcome; returns `None` for an allow (the harness treats \
+    no-output as default-allow). The __main__ guard turns the tuple into the \
+    PreToolUse JSON payload.
+    """
     tool_name = data.get("tool_name") or ""
     tool_input = data.get("tool_input") or {}
     state = load_state()

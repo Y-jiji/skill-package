@@ -39,12 +39,14 @@ import sys
 from pathlib import Path
 
 
-# Computes the post-edit content from a tool invocation. \
-# `tool_name`: Write or Edit \
-# `tool_input`: the hook's `tool_input` dict \
-# `before`: current file content (or "" for Write of a new file) \
-# Returns the projected `after` content, or None on malformed input.
 class EditApply:
+    """
+    Computes the post-edit content from a tool invocation. \
+    `tool_name`: Write or Edit \
+    `tool_input`: the hook's `tool_input` dict \
+    `before`: current file content (or "" for Write of a new file) \
+    Returns the projected `after` content, or None on malformed input.
+    """
     @classmethod
     def after(cls, tool_name, tool_input, before):
         if tool_name == "Write":
@@ -68,15 +70,17 @@ class EditApply:
         return text[:idx] + new + text[idx + len(old):]
 
 
-# Rule A and Rule B enforcement on the docblock invariants. \
-# `file_path`: target file path \
-# `before`, `after`: pre- and post-edit content strings \
-# `spec`: `items.Lang` instance for the file's language \
-# Returns `(verdict, changed)` where `verdict` is `(decision, reason)` \
-# on deny or None on pass, and `changed` is the list of item names \
-# whose body bytes differ between before and after (or [] if the \
-# check could not enumerate items).
 class DocblockGuard:
+    """
+    Rule A and Rule B enforcement on the docblock invariants. \
+    `file_path`: target file path \
+    `before`, `after`: pre- and post-edit content strings \
+    `spec`: `items.Lang` instance for the file's language \
+    Returns `(verdict, changed)` where `verdict` is `(decision, reason)` \
+    on deny or None on pass, and `changed` is the list of item names \
+    whose body bytes differ between before and after (or [] if the \
+    check could not enumerate items).
+    """
     @classmethod
     def check(cls, file_path, before, after, spec):
         parser = spec.parser()
@@ -155,15 +159,19 @@ class DocblockGuard:
             return 0
 
 
-# Path to the cross-hook stash that carries the body-changed item set \
-# from PreToolUse to PostToolUse.
 def _stash_path(root):
+    """
+    Path to the cross-hook stash that carries the body-changed item set \
+    from PreToolUse to PostToolUse.
+    """
     return root / ".claude" / "last_edit_changes.json"
 
 
-# Write `{"file": <rel>, "changed": [...]}` to the stash so PostToolUse \
-# can invalidate dependents at item granularity.
 def _save_changes(root, rel, changed):
+    """
+    Write `{"file": <rel>, "changed": [...]}` to the stash so PostToolUse \
+    can invalidate dependents at item granularity.
+    """
     p = _stash_path(root)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(
@@ -172,10 +180,12 @@ def _save_changes(root, rel, changed):
     )
 
 
-# Read the stash and return the body-changed names — but only when the \
-# stashed `file` matches `expected_rel`. Anything else is treated as \
-# stale and ignored.
 def _load_changes(root, expected_rel):
+    """
+    Read the stash and return the body-changed names — but only when the \
+    stashed `file` matches `expected_rel`. Anything else is treated as \
+    stale and ignored.
+    """
     p = _stash_path(root)
     if not p.exists():
         return []
@@ -189,10 +199,12 @@ def _load_changes(root, expected_rel):
     return [str(x) for x in out if isinstance(x, str)]
 
 
-# PreToolUse entry point. Returns (decision, reason) for deny, or None \
-# for allow. On allow, stashes the body-changed item set for the \
-# PostToolUse half.
 def handle_pre_tool_use(data):
+    """
+    PreToolUse entry point. Returns (decision, reason) for deny, or None \
+    for allow. On allow, stashes the body-changed item set for the \
+    PostToolUse half.
+    """
     tool_name = data.get("tool_name") or ""
     if tool_name not in {"Edit", "Write"}:
         return None
@@ -222,11 +234,13 @@ def handle_pre_tool_use(data):
     return verdict
 
 
-# PostToolUse entry point. Reads the PreToolUse stash; for the matching \
-# file calls Items.invalidate(rel) for file-level vars and \
-# Items.invalidate(f"{rel}::{name}") for each body-changed item, then \
-# emits one systemMessage listing every distinct flipped dependent.
 def handle_post_tool_use(data):
+    """
+    PostToolUse entry point. Reads the PreToolUse stash; for the matching \
+    file calls Items.invalidate(rel) for file-level vars and \
+    Items.invalidate(f"{rel}::{name}") for each body-changed item, then \
+    emits one systemMessage listing every distinct flipped dependent.
+    """
     file_path = (data.get("tool_input") or {}).get("file_path")
     if not file_path:
         return
