@@ -52,11 +52,10 @@ from pathlib import Path
 # A markdown item (note/X.md or plan/X.md). Validated state is the \
 # frontmatter `validated:` field; deps are the frontmatter `vars` list. \
 # Plans additionally carry a `scope` list, exposed via `scope()`. \
-# `root`: project root path. `path`: item id (e.g., "note/foo.md").
+# `path`: filesystem path to the markdown file (Path or str).
 class Note:
-    def __init__(self, root, path):
-        self._root = root
-        self._path = path
+    def __init__(self, path):
+        self._path = Path(path)
 
     def status(self):
         return str(self._fm().get("validated")).lower() == "true"
@@ -66,17 +65,14 @@ class Note:
         return v if isinstance(v, list) else []
 
     def scope(self):
-        if not self._path.startswith("plan/"):
-            return []
         s = self._fm().get("scope")
         return s if isinstance(s, list) else []
 
     def flip_to(self, val):
         from_val = "false" if val else "true"
         to_val = "true" if val else "false"
-        target = self._root / self._path
         try:
-            text = target.read_text(encoding="utf-8")
+            text = self._path.read_text(encoding="utf-8")
         except OSError:
             return False
         if not text.startswith("---\n"):
@@ -94,12 +90,12 @@ class Note:
         )
         if n == 0:
             return False
-        target.write_text(new_head + body, encoding="utf-8")
+        self._path.write_text(new_head + body, encoding="utf-8")
         return True
 
     def _fm(self):
         try:
-            text = (self._root / self._path).read_text(encoding="utf-8")
+            text = self._path.read_text(encoding="utf-8")
         except OSError:
             return {}
         return Note._parse_fm(text) or {}
@@ -329,44 +325,56 @@ class Lang:
         return f"<anonymous@{node.start_point[0] + 1}>"
 
 
-# A code file or per-item code identifier (path/to/file.ext or \
-# path/to/file.ext::item_name). Validated state is the docblock form \
-# of each tracked item (per skills/validate-mark/lang/<lang>.md). \
-# `root`: project root path. `path`: item id.
-class CodeDoc:
-    def __init__(self, root, path):
-        self._root = root
-        if "::" in path:
-            self._file, self._item = path.split("::", 1)
-        else:
-            self._file = path
-            self._item = None
+# One tracked item inside a CodeDoc — its name plus a validated flag \
+# computed from its docblock (per skills/validate-mark/lang/<lang>.md). \
+# Code items have no deps and cannot be flipped directly; their \
+# validation state is mutated only by editing the file.
+class CodeItem:
+    def __init__(self, name, validated):
+        self.name = name
+        self._validated = validated
 
     def status(self):
-        target = self._root / self._file
-        if not target.exists():
-            return True
-        spec = Lang.for_path(str(target))
+        return self._validated
+
+    def deps(self):
+        return []
+
+    def flip_to(self, val):
+        return False
+
+
+# A code file. `path` is the filesystem path to the file. `items()` \
+# enumerates the tracked items inside (functions/classes per language), \
+# each as a CodeItem. The doc's own `status()` is True iff every item \
+# is validated (or the file has no parseable items).
+class CodeDoc:
+    def __init__(self, path):
+        self._file = Path(path)
+
+    def items(self):
+        if not self._file.exists():
+            return []
+        spec = Lang.for_path(str(self._file))
         if spec is None:
-            return True
+            return []
         parser = spec.parser()
         if parser is None:
-            return True
+            return []
         try:
-            src_b = target.read_bytes()
+            src_b = self._file.read_bytes()
         except OSError:
-            return False
-        items = spec.enumerate_items(parser.parse(src_b), src_b)
-        if self._item is None:
-            for _n, _q, _b, docblock in items:
-                if docblock is None or not spec.is_validated(docblock[2]):
-                    return False
-            return True
-        for name, _q, _b, docblock in items:
-            if name != self._item:
-                continue
-            return docblock is not None and spec.is_validated(docblock[2])
-        return False
+            return []
+        return [
+            CodeItem(
+                name,
+                docblock is not None and spec.is_validated(docblock[2]),
+            )
+            for name, _q, _b, docblock in spec.enumerate_items(parser.parse(src_b), src_b)
+        ]
+
+    def status(self):
+        return all(it.status() for it in self.items())
 
     def deps(self):
         return []
@@ -404,7 +412,7 @@ class Items:
                 rel = f.relative_to(self._root).as_posix()
                 if rel == item_id:
                     continue
-                if item_id in Note(self._root, rel).deps():
+                if item_id in Note(f).deps():
                     out.append(rel)
         return out
 
@@ -440,5 +448,71 @@ class Items:
 
     def _of(self, item_id):
         if item_id.startswith("note/") or item_id.startswith("plan/"):
-            return Note(self._root, item_id)
-        return CodeDoc(self._root, item_id)
+            return Note(self._root / item_id)
+        if "::" in item_id:
+            file_part, item_name = item_id.split("::", 1)
+            for it in CodeDoc(self._root / file_part).items():
+                if it.name == item_name:
+                    return it
+            return CodeItem(item_name, False)
+        return CodeDoc(self._root / item_id)
+
+
+def _format_item(item_id, status, deps):
+    status_str = "true" if status else "false"
+    if deps:
+        return f"{item_id} validated={status_str} ([{', '.join(deps)}])"
+    return f"{item_id} validated={status_str}"
+
+
+def _cli_project(root):
+    db = Items(root)
+    notes = []
+    for top in ("note", "plan"):
+        base = root / top
+        if not base.is_dir():
+            continue
+        for f in sorted(base.rglob("*.md")):
+            notes.append(f.relative_to(root).as_posix())
+    extras = []
+    seen = set(notes)
+    for rel in notes:
+        for dep in db.deps(rel):
+            if dep in seen:
+                continue
+            seen.add(dep)
+            extras.append(dep)
+    for item_id in notes + sorted(extras):
+        print(_format_item(item_id, db.status(item_id), db.deps(item_id)))
+    return 0
+
+
+def _cli_file(path, arg):
+    if path.suffix == ".md":
+        note = Note(path)
+        print(_format_item(arg, note.status(), note.deps()))
+        return 0
+    if Lang.for_path(str(path)) is None:
+        sys.stderr.write(f"items: {arg}: unsupported file type\n")
+        return 1
+    for item in CodeDoc(path).items():
+        print(_format_item(f"{arg}::{item.name}", item.status(), item.deps()))
+    return 0
+
+
+def main(argv):
+    if len(argv) != 2:
+        sys.stderr.write(f"usage: {argv[0]} <PATH>\n")
+        return 2
+    arg = argv[1]
+    path = Path(arg).resolve()
+    if path.is_dir():
+        return _cli_project(path)
+    if path.is_file():
+        return _cli_file(path, arg)
+    sys.stderr.write(f"items: {arg}: no such file or directory\n")
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
