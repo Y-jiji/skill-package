@@ -28,10 +28,12 @@ from pathlib import Path
 
 
 # PostToolUse(Skill) handler. Dispatches: \
-# - validate-mark → note/plan: Items.validate; code file: docblock marker rewrite \
+# - validate-mark → note/plan: Items.validate; code file: docblock rewrite (mode unchanged) \
 # - act-mark → delete plan/<args>.md, then reset semaphore to default \
-# - undocumented → walk path, emit items whose status is none/unvalidated \
-# - any other skill → save_state(mode=skill, scope=Items.scope(plan) when /act)
+# - undocumented → walk path, emit items whose status is none/unvalidated (mode unchanged) \
+# - assume / validate / propose → save_state(mode=skill, scope=[]) \
+# - act → save_state(mode="act", scope=Items.scope("plan/<args>.md")) \
+# - anything else (harness builtins, third-party) → no semaphore change
 class PostMark:
     def __init__(self, skill, args, root):
         self._skill = skill
@@ -41,16 +43,23 @@ class PostMark:
     def __call__(self):
         if self._skill == "validate-mark":
             self._apply_validate_mark()
-        elif self._skill == "act-mark":
+            return
+        if self._skill == "act-mark":
             self._apply_act_mark()
             save_state({"mode": "", "scope": []})
-        elif self._skill == "undocumented":
+            return
+        if self._skill == "undocumented":
             self._apply_undocumented()
-        else:
+            return
+        if self._skill in {"assume", "validate", "propose", "act"}:
             sys.path.insert(0, str(Path(__file__).resolve().parent))
             from items import Items
-            scope = Items(self._root).scope(f"plan/{self._args}.md") if self._skill == "act" else []
+            scope = (
+                Items(self._root).scope(f"plan/{self._args}.md")
+                if self._skill == "act" else []
+            )
             save_state({"mode": self._skill, "scope": scope})
+            return
 
     def _apply_act_mark(self):
         target = (self._root / "plan" / f"{self._args}.md").resolve()
