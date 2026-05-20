@@ -498,9 +498,24 @@ class Items:
             if s == "validated":
                 continue
             if s == "not-exist":
+                example = self._example_item(d)
+                if example is not None:
+                    return False, f"dep {d} does not exist, break down to items, e.g.: {example}"
                 return False, f"dep {d} does not exist"
             return False, f"dep {d} is not validated"
         return True, None
+
+    def _example_item(self, dep):
+        if dep.startswith("note/") or dep.startswith("plan/"):
+            return None
+        file_part = dep.split("::", 1)[0]
+        path = self._root / file_part
+        if Lang.for_path(str(path)) is None:
+            return None
+        items = CodeDoc(path).items()
+        if not items:
+            return None
+        return f"{file_part}::{items[0].name}"
 
     def _of(self, item_id):
         if item_id.startswith("note/") or item_id.startswith("plan/"):
