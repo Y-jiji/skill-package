@@ -527,11 +527,7 @@ def _cli_file(path, arg):
     return 0
 
 
-def main(argv):
-    if len(argv) != 2:
-        sys.stderr.write(f"usage: {argv[0]} <PATH>\n")
-        return 2
-    arg = argv[1]
+def _cli_parse(arg):
     path = Path(arg).resolve()
     if path.is_dir():
         return _cli_project(path)
@@ -539,6 +535,86 @@ def main(argv):
         return _cli_file(path, arg)
     sys.stderr.write(f"items: {arg}: no such file or directory\n")
     return 1
+
+
+def _enumerate_bodies(path, spec, parser):
+    if not path.exists():
+        return {}
+    try:
+        src = path.read_bytes()
+    except OSError:
+        return {}
+    out = {}
+    for name, _q, body, _d in spec.enumerate_items(parser.parse(src), src):
+        out.setdefault(name, []).append(body)
+    return out
+
+
+def _cli_diff(before_arg, after_arg):
+    before_path = Path(before_arg).resolve()
+    after_path = Path(after_arg).resolve()
+    if before_path.exists() and before_path.is_dir():
+        sys.stderr.write(f"items: {before_arg}: directory not supported for diff\n")
+        return 1
+    if after_path.exists() and after_path.is_dir():
+        sys.stderr.write(f"items: {after_arg}: directory not supported for diff\n")
+        return 1
+    spec_before = Lang.for_path(str(before_path)) if before_path.exists() else None
+    spec_after = Lang.for_path(str(after_path)) if after_path.exists() else None
+    if spec_before is not None and spec_after is not None and spec_before is not spec_after:
+        sys.stderr.write(f"items: language mismatch between {before_arg} and {after_arg}\n")
+        return 1
+    spec = spec_after or spec_before
+    if spec is None:
+        sys.stderr.write(f"items: unsupported file type for diff\n")
+        return 1
+    parser = spec.parser()
+    if parser is None:
+        return 1
+    before_map = _enumerate_bodies(before_path, spec, parser)
+    after_map = _enumerate_bodies(after_path, spec, parser)
+    before_names = set(before_map.keys())
+    after_names = set(after_map.keys())
+    added = sorted(after_names - before_names)
+    removed = sorted(before_names - after_names)
+    changed = sorted(
+        name for name in before_names & after_names
+        if sorted(before_map[name]) != sorted(after_map[name])
+    )
+    for name in added:
+        print(f"+ {name}")
+    for name in removed:
+        print(f"- {name}")
+    for name in changed:
+        print(f"~ {name}")
+    return 0
+
+
+def _usage(prog):
+    sys.stderr.write(
+        f"usage:\n"
+        f"  {prog} parse <PATH>\n"
+        f"  {prog} diff <BEFORE> <AFTER>\n"
+    )
+
+
+def main(argv):
+    if len(argv) < 2:
+        _usage(argv[0])
+        return 2
+    cmd = argv[1]
+    if cmd == "parse":
+        if len(argv) != 3:
+            _usage(argv[0])
+            return 2
+        return _cli_parse(argv[2])
+    if cmd == "diff":
+        if len(argv) != 4:
+            _usage(argv[0])
+            return 2
+        return _cli_diff(argv[2], argv[3])
+    _usage(argv[0])
+    return 2
 
 
 if __name__ == "__main__":
