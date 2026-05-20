@@ -26,3 +26,5 @@ After (post-tool hook rewrote the marker):
 Rewrite: add one star to the opening — `/*` becomes `/**`. The trailing `*/` is unchanged. The body of the comment is preserved.
 
 Items without a preceding `/* ... */` block comment are skipped (they have no eligible docblock to upgrade); the agent must write one as part of `/act`, then re-run `/validate` + `/validate-mark`.
+
+See `skills/act/CPP.md` for the downgrade direction and the "Write a docblock" prose convention.

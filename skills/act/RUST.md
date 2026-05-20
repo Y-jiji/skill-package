@@ -29,7 +29,7 @@ The PreToolUse guard rejects until the body change and the marker downgrade are 
 
 ## Auto-upgrade by `/validate-mark`
 
-`/validate-mark path/to/file.rs` (or `::name`) rewrites every unvalidated `//` line in an attached docblock run into `///`. See `skills/validate-mark/lang/rust.md`.
+`/validate-mark path/to/file.rs` (or `::name`) rewrites every unvalidated `//` line in an attached docblock run into `///`. See `skills/validate-mark/RUST.md`.
 
 ## Write a docblock
 

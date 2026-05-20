@@ -20,4 +20,4 @@ Decorators and `_CSTYLE_WRAPPERS` (`attribute_specifier`, `annotation`, etc.) be
 
 Quoting: emits `"""` by default. If the joined body contains `"""`, falls back to `'''`. If both are present, uses `"""` and escapes each `"""` occurrence as `\"\"\"` inside the body.
 
-The downgrade direction (`hooks/docblock.py` Rule B when an agent edits a body) is unchanged — see `skills/act/lang/python.md`. The "Write a docblock" prose convention there describes what to write inside the `#` block that this upgrade will convert.
+The downgrade direction (Rule B when an agent edits a body) is the inverse — see `skills/act/PYTHON.md`. The "Write a docblock" prose convention there describes what to write inside the `#` block that this upgrade will convert.

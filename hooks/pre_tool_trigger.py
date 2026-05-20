@@ -305,12 +305,14 @@ RULES: dict[str, list[object]] = {
     "default": list(_BASE),
     "assume": list(_BASE) + [
         Matcher(Write(r"note/.*\.md"), "Allow"),
+        Matcher(Edit(r"note/.*\.md"), "Allow"),
         Matcher(WebFetch(), "Allow"),
         Matcher(WebSearch(), "Allow"),
     ] + list(_BASH_SAFE),
     "validate": list(_BASE) + list(_BASH_SAFE),
     "propose": list(_BASE) + [
         Matcher(Write(r"plan/.*\.md"), "Allow"),
+        Matcher(Edit(r"plan/.*\.md"), "Allow"),
         Matcher(WebFetch(), "Deny", "WebFetch info should be consolidated to note/ via assume skill"),
         Matcher(WebSearch(), "Deny", "WebSearch info should be consolidated to note/ via assume skill"),
     ] + list(_BASH_SAFE),

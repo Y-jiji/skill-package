@@ -33,7 +33,7 @@ The PreToolUse guard rejects until both the body change and the marker downgrade
 
 ## Auto-upgrade by `/validate-mark`
 
-`/validate-mark path/to/file.cpp` (or `::name`) rewrites every unvalidated `/* … */` docblock attached to a target item into a `/** … */` validated docblock by adding one star to the opener. See `skills/validate-mark/lang/cpp.md`.
+`/validate-mark path/to/file.cpp` (or `::name`) rewrites every unvalidated `/* … */` docblock attached to a target item into a `/** … */` validated docblock by adding one star to the opener. See `skills/validate-mark/CPP.md`.
 
 ## Write a docblock
 

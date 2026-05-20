@@ -18,4 +18,4 @@ Roles: `user` and `agent`
     Just pick the next mode you should enter and call the corresponding skill. 
     Simple Verdict: 
     + When you are able to ask the user `Want me to ...` or `Do you like ...`, it likely means you can proceed.
-    + Does it involve a new design decision, or a contradictive design decision?
+    + Does it involve a new design decision, or a contradictive design decision? If not, choose your next move, and just do it. 

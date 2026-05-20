@@ -27,7 +27,7 @@ The PreToolUse guard rejects the Edit until the body change and the docstring re
 
 ## Auto-upgrade by `/validate-mark`
 
-`/validate-mark path/to/file.py` (or `::name`) structurally rewrites each eligible `#` run into a docstring per `skills/validate-mark/lang/python.md` Case A / B / C.
+`/validate-mark path/to/file.py` (or `::name`) structurally rewrites each eligible `#` run into a docstring per `skills/validate-mark/PYTHON.md` Case A / B / C.
 
 ## Write a docblock
 

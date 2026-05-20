@@ -22,3 +22,5 @@ After (post-tool hook rewrote each line):
 Rewrite: for every line in the docblock run, replace leading `//` with `///` (preserving indentation). Lines that are already `///` or `//!` are left untouched. Block comments are not auto-upgraded (`/** */` upgrade is not currently performed — line-form is the canonical Rust doc style).
 
 Items without a preceding `//` line-comment run are skipped.
+
+See `skills/act/RUST.md` for the downgrade direction and the per-item-kind "Write a docblock" prose conventions.
