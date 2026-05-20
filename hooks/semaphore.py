@@ -1,15 +1,36 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "tree-sitter>=0.22",
+#   "tree-sitter-cpp",
+#   "tree-sitter-rust",
+#   "tree-sitter-python",
+#   "tree-sitter-javascript",
+#   "tree-sitter-typescript",
+#   "tree-sitter-java",
+# ]
+# ///
 """Semaphore hook — maintain and enforce `.claude/semaphore.json`.
 
 Hook events served (one script, dispatched on `hook_event_name`):
 
-- `SessionStart`, `Stop`: reset state to `{"skill": "default", "scope": []}`.
 - `PostToolUse(Skill)`:
-    - `/validate-mark <PATH>` → flip `validated: false → true` on the target file.
+    - `/validate-mark <PATH>` → flip `validated: false → true` on note/plan
+      targets (subject to a docblock precondition on their dependent code
+      files), OR convert unvalidated → validated docblocks when the target
+      is a code file (optionally limited to `path::item`).
     - `/act-mark <ARG>` → delete `plan/<ARG>.md`.
     - Then record current skill (and, for `/act`, the scope read from `plan/<ARG>.md`).
 - `PreToolUse(*)`: enforce per-mode allow rules; for `Skill(act)`, additionally
   check that the plan and every note in its `vars` are `validated: true`.
+
+State persists across sessions and `Stop` events — it changes only when the
+next `Skill` invocation overwrites it.
+
+tree-sitter is imported lazily so the basic state-machine paths still work in
+environments without it; only the docblock precondition and code-file
+conversion paths require it.
 """
 from __future__ import annotations
 
@@ -96,12 +117,12 @@ RULES: dict[str, dict] = {
         "tools": {"Read", "Grep", "Glob", "Skill", "ToolSearch"},
     },
     "assume": {
-        "tools": {"Read", "Grep", "Glob", "Skill", "Write", 
+        "tools": {"Read", "Grep", "Glob", "Skill", "Write", "Bash", 
                   "MultiEdit", "ToolSearch", "WebSearch", "WebFetch"},
         "write_pred": lambda rel, scope: rel.startswith("note/"),
     },
     "validate": {
-        "tools": {"Read", "Grep", "Glob", "Skill", "ToolSearch"},
+        "tools": {"Read", "Grep", "Glob", "Skill", "Bash", "ToolSearch"},
     },
     "validate-mark": {
         "tools": {"ToolSearch"},
@@ -264,19 +285,195 @@ def parse_scope_from_plan(plan_path: Path) -> list[str]:
     return scope if isinstance(scope, list) else []
 
 
+# --- docblock integration (lazy; tree-sitter only loaded when needed) -----
+
+# Lazy import of sibling docblock.py so non-docblock paths still work in
+# environments without tree-sitter installed. Returns the module or None.
+def _docblock_module():
+    cached = globals().get("_docblock_mod_cached")
+    if cached is not None:
+        return cached
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import docblock as mod  # noqa: E402
+        globals()["_docblock_mod_cached"] = mod
+        return mod
+    except Exception as e:
+        sys.stderr.write(f"semaphore: docblock module unavailable: {e}\n")
+        return None
+
+
+# Convert all unvalidated docblocks in `target` to validated form. If
+# `item_filter` is set, only convert the docblock for the named item.
+# Returns (ok, message). Python is text-rewrite-only in v1 (see
+# _upgrade_marker); other languages do a marker swap in place.
+def convert_code_file(target: Path, item_filter: str | None) -> tuple[bool, str]:
+    doc = _docblock_module()
+    if doc is None:
+        return False, "tree-sitter unavailable; install uv-managed deps"
+    _lang_name, cfg = doc.lang_for_path(str(target))
+    if cfg is None:
+        return False, f"unsupported file extension for {target}"
+    parser = doc.get_parser(cfg)
+    if parser is None:
+        return False, f"grammar unavailable for {target}"
+    try:
+        src_b = target.read_bytes()
+    except OSError as e:
+        return False, f"cannot read {target}: {e}"
+    tree = parser.parse(src_b)
+    items = doc.enumerate_items(tree, src_b, cfg)
+    is_validated = doc._VALIDATED_PREDS[cfg["validated_pred"]]
+    rewrites: list[tuple[int, int, bytes]] = []
+    for name, _qname, _body, docblock in items:
+        if item_filter is not None and name != item_filter:
+            continue
+        if docblock is None:
+            continue
+        start, end, text = docblock
+        if is_validated(text):
+            continue
+        new_text = _upgrade_marker(text, cfg["validated_pred"])
+        if new_text is None or new_text == text:
+            continue
+        rewrites.append((start, end, new_text))
+    if not rewrites:
+        return True, f"no eligible docblocks to upgrade in {target}"
+    rewrites.sort(key=lambda r: r[0], reverse=True)
+    out = bytearray(src_b)
+    for start, end, new_text in rewrites:
+        out[start:end] = new_text
+    target.write_bytes(bytes(out))
+    return True, f"upgraded {len(rewrites)} docblock(s) in {target}"
+
+
+# Marker-only rewrite. Python docstring upgrade is structural (text must move
+# into the body) and is not auto-rewritten in v1 — see skills/*/lang/python.md.
+def _upgrade_marker(text: bytes, pred_name: str) -> bytes | None:
+    if pred_name == "cstyle_double_star":
+        if text.startswith(b"/*") and not text.startswith(b"/**"):
+            return b"/**" + text[2:]
+        return None
+    if pred_name == "rust_outer_doc":
+        out_lines: list[bytes] = []
+        for raw in text.split(b"\n"):
+            stripped = raw.lstrip()
+            ws_len = len(raw) - len(stripped)
+            if (stripped.startswith(b"//")
+                    and not stripped.startswith(b"///")
+                    and not stripped.startswith(b"//!")):
+                out_lines.append(raw[:ws_len] + b"///" + raw[ws_len + 2:])
+            else:
+                out_lines.append(raw)
+        return b"\n".join(out_lines)
+    return None
+
+
+# Returns (ok, reason). ok=True iff every item in `file_path` carries a
+# validated docblock. Unsupported extensions / missing grammars pass.
+def check_all_items_validated(file_path: Path) -> tuple[bool, str | None]:
+    doc = _docblock_module()
+    if doc is None:
+        return True, None
+    _lang_name, cfg = doc.lang_for_path(str(file_path))
+    if cfg is None:
+        return True, None
+    parser = doc.get_parser(cfg)
+    if parser is None:
+        return True, None
+    if not file_path.exists():
+        return False, f"{file_path} (referenced) does not exist"
+    try:
+        src_b = file_path.read_bytes()
+    except OSError as e:
+        return False, f"cannot read {file_path}: {e}"
+    tree = parser.parse(src_b)
+    items = doc.enumerate_items(tree, src_b, cfg)
+    is_validated = doc._VALIDATED_PREDS[cfg["validated_pred"]]
+    failures: list[str] = []
+    for name, _qname, _body, docblock in items:
+        if docblock is None:
+            failures.append(f"{name} (no docblock)")
+            continue
+        if not is_validated(docblock[2]):
+            failures.append(f"{name} (not validated)")
+    if failures:
+        return False, f"{file_path.name}: " + "; ".join(failures)
+    return True, None
+
+
+# For a note's vars or a plan's scope, verify every code file with a supported
+# extension has all items validated. Files that don't exist yet (typical for
+# plan scope items not yet created by /act) are skipped.
+def _check_dependent_code_files(target: Path, rel: str) -> tuple[bool, str | None]:
+    try:
+        fm = parse_frontmatter(target.read_text(encoding="utf-8")) or {}
+    except OSError as e:
+        return False, f"cannot read {rel}: {e}"
+    deps = fm.get("vars") if rel.startswith("note/") else fm.get("scope")
+    if not isinstance(deps, list):
+        return True, None
+    root = project_root()
+    failures: list[str] = []
+    for dep in deps:
+        dep_path = (root / dep).resolve()
+        try:
+            dep_path.relative_to(root)
+        except ValueError:
+            continue
+        if not dep_path.exists():
+            continue
+        ok, reason = check_all_items_validated(dep_path)
+        if not ok and reason is not None:
+            failures.append(reason)
+    if failures:
+        return False, " | ".join(failures)
+    return True, None
+
+
+# --- /validate-mark post-tool dispatch ------------------------------------
+
+# Handles three arg shapes:
+#   note/X.md, plan/X.md  → frontmatter flip after docblock precondition check.
+#   path/to/file.ext      → upgrade every unvalidated docblock in the file.
+#   path/to/file.ext::name → upgrade only the named item's docblock.
 def apply_validate_mark(skill: str, args: str, root: Path) -> bool:
     if skill != "validate-mark":
         return False
-    target = (root / args).resolve()
+    item_filter: str | None = None
+    if "::" in args:
+        path_part, item_filter = args.split("::", 1)
+    else:
+        path_part = args
+    target = (root / path_part).resolve()
     try:
-        target.relative_to(root)
+        rel = target.relative_to(root).as_posix()
     except ValueError:
         return True
-    if target.exists() and flip_validated_to_true(target):
+    if not target.exists():
         print(json.dumps({
-            "systemMessage": f"validated: {args}",
+            "systemMessage": f"validate-mark target not found: {path_part}",
             "suppressOutput": True,
         }))
+        return True
+
+    if rel.startswith("note/") or rel.startswith("plan/"):
+        ok, reason = _check_dependent_code_files(target, rel)
+        if not ok:
+            print(json.dumps({
+                "systemMessage": f"cannot validate {rel}: {reason}",
+                "suppressOutput": True,
+            }))
+            return True
+        if flip_validated_to_true(target):
+            print(json.dumps({
+                "systemMessage": f"validated: {rel}",
+                "suppressOutput": True,
+            }))
+        return True
+
+    _ok, msg = convert_code_file(target, item_filter)
+    print(json.dumps({"systemMessage": msg, "suppressOutput": True}))
     return True
 
 
@@ -325,10 +522,6 @@ def main() -> None:
     except Exception:
         return
     event = data.get("hook_event_name") or ""
-
-    if event in ("SessionStart", "Stop"):
-        save_state({"skill": "default", "scope": []})
-        return
 
     if event == "PostToolUse" and data.get("tool_name") == "Skill":
         handle_post_skill(data)

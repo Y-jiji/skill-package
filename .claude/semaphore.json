@@ -1,4 +1,11 @@
 {
-  "skill": "default",
-  "scope": []
+  "skill": "act",
+  "scope": [
+    "skills/act/lang/cpp.md",
+    "skills/act/lang/rust.md",
+    "skills/act/lang/python.md",
+    "skills/act/lang/js.md",
+    "skills/act/lang/go.md",
+    "skills/act/lang/java.md"
+  ]
 }

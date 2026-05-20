@@ -31,6 +31,15 @@
             "command": "python3 \"$HOME/.claude/hooks/semaphore.py\""
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run \"$HOME/.claude/hooks/docblock.py\""
+          }
+        ]
       }
     ],
     "PostToolUse": [
