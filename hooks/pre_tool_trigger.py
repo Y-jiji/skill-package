@@ -32,8 +32,6 @@ import shlex
 import sys
 from pathlib import Path
 
-_MAX_BASH_ARGS = 6
-
 # Action wrapper: pairs a tool predicate with a verdict and optional reason. \
 # `predicate`: callable `(tool_name, tool_input) -> bool` \
 # `verdict`: "Allow", "Deny", or "Ask" \
@@ -59,7 +57,6 @@ class Matcher:
             return (self.verdict, self.reason)
         return None
 
-
 # Bash verdict class. Uniform positional match: `specs[i]` tests `tokens[i]`. \
 # On first call for a given tool_input dict, runs the safety pipeline and \
 # caches the result under `_bash_tokens` (False on safety failure, list of \
@@ -83,7 +80,7 @@ class Bash:
         ">", "<", ">>", "<<", "<&", ">&", "<>", ">|",
         "|", "|&", "&&", "||", ";", "&", "\n",
     }
-    _MAX_ARGS = _MAX_BASH_ARGS
+    _MAX_ARGS = 6
 
     def __init__(self, *specs):
         self._specs = [Matcher._norm(s) for s in specs]
