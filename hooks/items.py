@@ -58,7 +58,12 @@ class Note:
         self._path = Path(path)
 
     def status(self):
-        return str(self._fm().get("validated")).lower() == "true"
+        if not self._path.exists():
+            return "not-exist"
+        v = self._fm().get("validated")
+        if v is None:
+            return "none"
+        return "validated" if str(v).lower() == "true" else "unvalidated"
 
     def deps(self):
         v = self._fm().get("vars")
@@ -357,12 +362,12 @@ class Lang:
 # Code items have no deps and cannot be flipped directly; their \
 # validation state is mutated only by editing the file.
 class CodeItem:
-    def __init__(self, name, validated):
+    def __init__(self, name, state):
         self.name = name
-        self._validated = validated
+        self._state = state
 
     def status(self):
-        return self._validated
+        return self._state
 
     def deps(self):
         return []
@@ -392,16 +397,33 @@ class CodeDoc:
             src_b = self._file.read_bytes()
         except OSError:
             return []
-        return [
-            CodeItem(
-                name,
-                docblock is not None and spec.is_validated(docblock[2]),
-            )
-            for name, _q, _b, docblock in spec.enumerate_items(parser.parse(src_b), src_b)
-        ]
+        out = []
+        for name, _q, _b, docblock in spec.enumerate_items(parser.parse(src_b), src_b):
+            if docblock is None:
+                state = "none"
+            elif spec.is_validated(docblock[2]):
+                state = "validated"
+            else:
+                state = "unvalidated"
+            out.append(CodeItem(name, state))
+        return out
 
     def status(self):
-        return all(it.status() for it in self.items())
+        if not self._file.exists():
+            return "not-exist"
+        spec = Lang.for_path(str(self._file))
+        if spec is None or spec.parser() is None:
+            return "validated"
+        states = [it.status() for it in self.items()]
+        if not states:
+            return "validated"
+        if any(s == "not-exist" for s in states):
+            return "not-exist"
+        if any(s == "none" for s in states):
+            return "none"
+        if any(s == "unvalidated" for s in states):
+            return "unvalidated"
+        return "validated"
 
     def deps(self):
         return []
@@ -420,10 +442,12 @@ class Items:
         self._root = Path(project_path).resolve()
 
     def status(self, item_id):
-        return self._of(item_id).status()
+        item = self._of(item_id)
+        return item.status() if item is not None else "not-exist"
 
     def deps(self, item_id):
-        return self._of(item_id).deps()
+        item = self._of(item_id)
+        return item.deps() if item is not None else []
 
     def scope(self, item_id):
         item = self._of(item_id)
@@ -452,7 +476,8 @@ class Items:
             if x in visited:
                 continue
             visited.add(x)
-            if self._of(x).flip_to(False):
+            item = self._of(x)
+            if item is not None and item.flip_to(False):
                 flipped.append(x)
             for d in self.dependents(x):
                 if d not in visited:
@@ -469,8 +494,12 @@ class Items:
 
     def validate_check(self, item_id):
         for d in self.deps(item_id):
-            if not self.status(d):
-                return False, f"dep {d} is not validated"
+            s = self.status(d)
+            if s == "validated":
+                continue
+            if s == "not-exist":
+                return False, f"dep {d} does not exist"
+            return False, f"dep {d} is not validated"
         return True, None
 
     def _of(self, item_id):
@@ -481,15 +510,17 @@ class Items:
             for it in CodeDoc(self._root / file_part).items():
                 if it.name == item_name:
                     return it
-            return CodeItem(item_name, False)
-        return CodeDoc(self._root / item_id)
+            return CodeItem(item_name, "not-exist")
+        path = self._root / item_id
+        if Lang.for_path(str(path)) is not None:
+            return None
+        return CodeDoc(path)
 
 
 def _format_item(item_id, status, deps):
-    status_str = "true" if status else "false"
     if deps:
-        return f"{item_id} validated={status_str} ([{', '.join(deps)}])"
-    return f"{item_id} validated={status_str}"
+        return f"{item_id} status={status} ([{', '.join(deps)}])"
+    return f"{item_id} status={status}"
 
 
 def _cli_project(root):

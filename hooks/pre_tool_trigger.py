@@ -216,7 +216,7 @@ class ActPrecondition:
         sys.path.insert(0, str(Path(__file__).resolve().parent))
         from items import Items
         items = Items(self._root)
-        if not items.status(plan_id):
+        if items.status(plan_id) != "validated":
             return ("Deny", f"{plan_id} is not validated")
         ok, reason = items.validate_check(plan_id)
         if not ok:
