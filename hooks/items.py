@@ -156,13 +156,14 @@ class Lang:
         "decorator", "type_annotation",
     }
 
-    def __init__(self, name, exts, item_kinds, attachment, validated_pred, loader):
+    def __init__(self, name, exts, item_kinds, attachment, validated_pred, loader, scope_kinds=None):
         self.name = name
         self.exts = exts
         self.item_kinds = item_kinds
         self.attachment = attachment
         self.validated_pred = validated_pred
         self.loader = loader
+        self.scope_kinds = scope_kinds if scope_kinds is not None else set()
         self._parser = None
         self._parser_loaded = False
 
@@ -186,10 +187,10 @@ class Lang:
                 ("tree_sitter_cpp", "language")),
             cls("rust",
                 {".rs"},
-                {"function_item", "impl_item", "struct_item", "enum_item",
-                 "trait_item", "mod_item"},
+                {"function_item", "struct_item", "enum_item", "trait_item"},
                 "preceding_run_rust", "rust_outer_doc",
-                ("tree_sitter_rust", "language")),
+                ("tree_sitter_rust", "language"),
+                scope_kinds={"mod_item", "impl_item"}),
             cls("python",
                 {".py"},
                 {"function_definition", "class_definition"},
@@ -255,16 +256,23 @@ class Lang:
     def enumerate_items(self, tree, src):
         results = []
         kinds = self.item_kinds
-        def walk(node):
+        scope_kinds = self.scope_kinds
+        def walk(node, scope):
+            child_scope = scope
+            if node.type in scope_kinds:
+                label = self._scope_label(node)
+                if label is not None:
+                    child_scope = scope + [label]
             if node.type in kinds:
                 name = self._item_name(node)
-                qname = f"{name}@L{node.start_point[0] + 1}"
+                path = "::".join(scope + [name]) if scope else name
+                qname = f"{path}@L{node.start_point[0] + 1}"
                 body = bytes(src[node.start_byte:node.end_byte])
                 doc = self._attach(node, src)
-                results.append((name, qname, body, doc))
+                results.append((path, qname, body, doc))
             for child in node.children:
-                walk(child)
-        walk(tree.root_node)
+                walk(child, child_scope)
+        walk(tree.root_node, [])
         return results
 
     def _attach(self, node, src):
@@ -310,11 +318,6 @@ class Lang:
 
     @staticmethod
     def _item_name(node):
-        if node.type == "impl_item":
-            target = Lang._impl_target_name(node)
-            if target is not None:
-                return target
-            return f"<anonymous@{node.start_point[0] + 1}>"
         n = node.child_by_field_name("name")
         if n is not None and n.text is not None:
             return n.text.decode("utf-8", errors="replace")
@@ -330,16 +333,22 @@ class Lang:
         return f"<anonymous@{node.start_point[0] + 1}>"
 
     @staticmethod
-    def _impl_target_name(node):
-        type_node = node.child_by_field_name("type")
-        if type_node is None:
-            return None
-        stack = [type_node]
-        while stack:
-            n = stack.pop()
-            if n.type == "type_identifier" and n.text is not None:
+    def _scope_label(node):
+        if node.type == "mod_item":
+            n = node.child_by_field_name("name")
+            if n is not None and n.text is not None:
                 return n.text.decode("utf-8", errors="replace")
-            stack.extend(reversed(n.children))
+            return None
+        if node.type == "impl_item":
+            type_node = node.child_by_field_name("type")
+            if type_node is None or type_node.text is None:
+                return None
+            target = type_node.text.decode("utf-8", errors="replace")
+            trait_node = node.child_by_field_name("trait")
+            if trait_node is None or trait_node.text is None:
+                return target
+            trait = trait_node.text.decode("utf-8", errors="replace")
+            return f"<{target} as {trait}>"
         return None
 
 

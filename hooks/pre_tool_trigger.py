@@ -251,15 +251,15 @@ _ZERO_ARG = ("pwd", "whoami", "hostname", "true", "false", "env", "date",
 # Bash is a verdict class (defaults to verdict="Allow"); no Matcher wrap.
 _BASH_SAFE = (
     [Bash(c, *([_RE_PF] * n))
-     for c in _READ_CMDS for n in range(_MAX_BASH_ARGS + 1)]
+     for c in _READ_CMDS for n in range(Bash._MAX_ARGS + 1)]
     + [Bash(c, *([_RE_GREP] * n))
-       for c in _GREP_CMDS for n in range(_MAX_BASH_ARGS + 1)]
+       for c in _GREP_CMDS for n in range(Bash._MAX_ARGS + 1)]
     + [Bash("find")]
     + [Bash("find", _RE_PF, *([_RE_FIND] * n))
-       for n in range(_MAX_BASH_ARGS)]
+       for n in range(Bash._MAX_ARGS)]
     + [Bash("git")]
     + [Bash("git", _RE_GIT_SUB, *([_RE_PF] * n))
-       for n in range(_MAX_BASH_ARGS)]
+       for n in range(Bash._MAX_ARGS)]
     + [Bash(c) for c in _ZERO_ARG]
     + [
         Bash("pwd", r"-[LP]"),
@@ -270,7 +270,7 @@ _BASH_SAFE = (
         Bash("pushd", _RE_PF),
     ]
     + [Bash("echo", *([r"-[neE]+|" + _RE_VAL] * n))
-       for n in range(_MAX_BASH_ARGS + 1)]
+       for n in range(Bash._MAX_ARGS + 1)]
 )
 
 _ROOT = Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()).resolve()
@@ -278,6 +278,10 @@ _ROOT = Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()).resolve()
 _BASE = [
     ActPrecondition(_ROOT),
     Matcher(Read(".*"), "Allow"),
+    Matcher(Skill("validate-mark", ".*"), "Ask",
+            "confirm /validate-mark side effect"),
+    Matcher(Skill("act-mark", ".*"), "Ask",
+            "confirm /act-mark side effect"),
     Matcher(Skill(".*"), "Allow"),
     Matcher(ToolSearch(), "Allow"),
 ]
