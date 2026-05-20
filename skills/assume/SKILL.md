@@ -23,11 +23,16 @@ Second, reframe the question to [Reframed Question].
 Put the following in yaml frontmatter
 
 - `vars`: a list of items that affects the answer to [Reframed Question]. 
-    - If the file extension is listed in the following, cite item:
+    - Item can be from code files or note folder. 
+    - Format for cite items, by file extension:
+        - Format for `.c`/`.h`/`.cpp`/`.cc`/`.cxx`/`.hpp`/`.hh`/`.hxx`: [CPP](CPP.md)
+        - Format for `.java`: [JAVA](JAVA.md)
+        - Format for `.js`/`.jsx`/`.mjs`/`.cjs`: [JS](JS.md)
         - Format for `.py`: [PY](PYTHON.md)
-        - Format for `.cpp`/`.hpp`: [CPP](CPP.md)
         - Format for `.rs`: [RS](RUST.md)
-    - whole-file is an item otherwise. 
+        - Format for `.ts`: [TS](TS.md)
+        - Format for `.tsx`: [TSX](TSX.md)
+        - The whole file is an item otherwise. 
 - `validated: false`
 
 ## Body

@@ -150,12 +150,6 @@ class Note:
 
 
 class Lang:
-    """
-    Per-language parsing config + tree-sitter helpers. One instance per \
-    supported language; the class-level `for_path` returns the instance \
-    whose `exts` matches the file's suffix, or None for unsupported files. \
-    Parsers are constructed lazily (and cached) on first `parser()` call.
-    """
     _ALL = None  # populated lazily
 
     _CSTYLE_WRAPPERS = {
@@ -267,6 +261,15 @@ class Lang:
         return False
 
     def enumerate_items(self, tree, src):
+        """
+        Walk `tree` once and yield one tuple per node whose `node.type` is in `self.item_kinds`. \
+        `tree`: tree-sitter Tree for `src`. \
+        `src`: file source bytes (the same buffer `tree` was parsed from). \
+        `@return`: list of `(path, qname, body, doc)`. `path` is `_item_name(node)` joined with \
+        any enclosing `scope_kinds` labels (Rust only) via `::`; `qname` appends `@L<line>` for \
+        uniqueness; `body` is the node's source bytes; `doc` is `_attach`'s tuple or None. \
+        O(n) over node count; one shallow recursion frame per scope nest depth.
+        """
         results = []
         kinds = self.item_kinds
         scope_kinds = self.scope_kinds
@@ -368,6 +371,14 @@ class Lang:
 
     @staticmethod
     def _scope_label(node):
+        """
+        Return the scope-prefix label for a Rust scope wrapper, or None if no usable label. \
+        `node`: a `mod_item` or `impl_item` tree-sitter node. \
+        `@return`: bare module name for `mod_item`; for `impl_item`, the implementing type \
+        name (from the `type` field), or `<Type as Trait>` when the impl carries a `trait` \
+        field. Returns None if the `type` subtree has no `type_identifier` leaf — caller \
+        then skips the scope (the item still appears, just unscoped).
+        """
         if node.type == "mod_item":
             n = node.child_by_field_name("name")
             if n is not None and n.text is not None:
@@ -466,13 +477,6 @@ class CodeDoc:
 
 
 class Items:
-    """
-    The project's item/dependency graph. Constructs Note and CodeDoc \
-    instances on demand and provides the cross-cutting graph operations \
-    (dependents lookup, transitive invalidation, dep-walk validation). \
-    `project_path`: project root path. Public methods are invoked from \
-    within other hook classes; no entry-point free function calls them.
-    """
     def __init__(self, project_path):
         self._root = Path(project_path).resolve()
 
@@ -553,6 +557,13 @@ class Items:
         return f"{file_part}::{items[0].name}"
 
     def _of(self, item_id):
+        """
+        Dispatch an item id to its handler — covers all three shapes the graph uses. \
+        `note/<name>.md` / `plan/<name>.md` → Note wrapping the project-relative path. \
+        `path::name` → CodeItem found by name inside CodeDoc(path), or "not-exist" sentinel. \
+        `path` (no `::`) → CodeDoc(path) if the suffix has no Lang.exts entry, else None. \
+        `@return`: a Note / CodeItem / CodeDoc / None per the shape rules above.
+        """
         if item_id.startswith("note/") or item_id.startswith("plan/"):
             return Note(self._root / item_id)
         if "::" in item_id:

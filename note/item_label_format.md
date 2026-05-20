@@ -5,7 +5,7 @@ vars:
   - hooks/items.py::_of
   - hooks/items.py::enumerate_items
   - hooks/items.py::_scope_label
-validated: false
+validated: true
 ---
 
 **Claim.** Item labels in the `Items` graph have exactly three shapes:
