@@ -1,18 +1,68 @@
 ---
 name: propose
-description: Write a code plan to plan/<ARG>.md with frontmatter vars (note dependencies) and scope (editable file paths), validated:false.
-mode_enter: propose
-mode_ability: Read any file; Write/Edit limited to `plan/*.md`; safe-bash subset; Skill invocations allowed. WebFetch and WebSearch are explicitly denied with reason "WebFetch info should be consolidated to note/ via assume skill" — gather external info under /assume, then reference its note here.
+description: Trigger this when you want to make a change. Enter `propose` mode to write a proposal to `plan/<NAME>.md`. 
 ---
 
-You are inside `/propose`. The argument `<ARG>` is the plan name. Write `plan/<ARG>.md` with frontmatter:
+Contribute one proposal to `plan/<NAME>.md`
 
-- `vars`: list of `note/<NAME>.md` paths the plan depends on.
-- `scope`: list of code file paths this plan is allowed to edit.
-- `validated: false`.
+## Before Writing
 
-Plan vars are notes (`note/<NAME>.md`); they are not subject to the item-level rule directly. However, those upstream notes' own `vars` must follow it for any code-file dep, or `/validate plan/<ARG>.md` will fail at the dep walk with "dep <code-file> does not exist, break down to items". When you reference a code file in a note, write `path::item_name`. Plan `scope`, by contrast, is file-level (it lists files `/act` may edit), and is not affected by the item-level rule.
+First, focus the issue: 
+- What is current issue? Answer it as [Answer Issue]
+- Are there any assumptions in [Answer Issue]? Answer it as a bulletpoint list, [Answer Assumption]
+- Do all of [Answer Assumption] hold?
+    - Which of them can be directly acquired from `scope` files? [Answer Scope]
+    - Which of them references `vars`? [Answer Vars]
+    - Which of them can be classified to other cases? Answer as [Answer Other]
+- Present [Answer Issue], [Answer Scope], [Answer Vars], [Answer Other] to the user. 
 
-The body describes the proposed code change in 100 lines, citing the notes in `vars`. 
+Second, locate files and inspect code state to form code actions: 
+- Before working, if [Answer Other] is not empty, consolidate it them into `note/` using `/assume` skill before proceeding. 
+- What files are subject to change? Answer as [Answer Scope Edit]
+- How will you edit [Answer Scope Edit]? Answer as [Answer Transition]
+- Merge [Answer Scope Edit] into [Answer Scope]
 
-You may write or multi-edit inside `plan/`. You may not write to `note/` or to code, and you may not use Bash. The fence will deny anything off-spec.
+## Frontmatter
+
+Put the following in yaml frontmatter
+
+- `vars`: list of `note/<NAME>.md` items the plan depends on.
+    - Usually, we do not cite the code here, but in `scope`. 
+- `scope`: list of code file paths that requires modification. 
+    - Make sure it does not overlap with `vars`
+    - `scope` is read anyways. 
+- `validated: false`
+
+## Body
+
+Step 1: Issue
++ Add `# Issue` section header
++ Write the issue statement from [Answer Issue]
++ Max 100 words. 
+
+Step 2: Snapshot
++ Add `# Snapshot` section header
++ Describe current code state description in [Answer Scope]
++ Describe how it deviating from it affects [Answer Transition]
++ Max 5 lines, Max 80 word per line
+
+Step 3: Transition
++ Add `# Transition` section header
++ Decompose [Answer Transition] by file path into subsections: 
+    + Use file path as subsection header. 
+    + Write how new code behavior is different from old code.  
+    + State comment changes incurred by [Answer Transition]. 
+    + Max 10 lines per subsection. 
+
+## After Writing
+
+- Invoke skill `/validate plan/<NAME>.md` directly. 
+- If user confirms, invoke skill `/act <NAME>` directly.  
+
+## Anti-Pattern
+
+What should not happen in `/propose`:
+- Fields other than `vars`, `scope` and `validated` in frontmatter. For example, `name` and `description`. 
+- Reference code files in `vars`. 
+- [Answer Transition] breach into `# Snapshot` section. 
+- Put comment changes in [Answer Transition]

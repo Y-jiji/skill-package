@@ -1,27 +1,35 @@
 ---
 name: act
-description: Execute plan/<ARG>.md within its declared scope. Fence enforces preconditions and scope; on completion, invoke /act-mark to delete the plan.
-mode_enter: act
-mode_ability: Read any file; Write/Edit allowed iff `file_path` ∈ the plan's declared `scope` (live-read from `.claude/semaphore.json` on each check); Write/Edit on `note/*` denied; safe-bash subset; Skill invocations allowed. Precondition checked at invocation: the plan AND every note in its `vars` must be validated.
+description: Trigger this when you want to execute a validated plan. Enter `act` mode to write code files in scope. 
 ---
 
-You are inside `/act`. The argument `<ARG>` is a plan name.
+Execute `plan/<NAME>.md` to completion.
 
-By the time this skill is running, the fence has already verified:
+## Before Editing
 
-- `plan/<ARG>.md` is `validated: true`.
-- Every note listed in `plan/<ARG>.md`'s `vars` is `validated: true`.
+First, read the plan file `plan/<NAME>.md` again.  
 
-If any precondition had failed, this invocation would have been denied — you are cleared to edit.
+Second, match issue: 
+- Does the issue still persist in the codebase?
+- If it does not, just skip editing to delete the plan. 
 
-Steps:
+Third, match current codebase state:
+- Does the codebase's state match the snapshotted state presumed by `plan/<NAME>.md`?
+- If it does not, invoke skill `/propose` to rewire the plan again. 
 
-1. Read `plan/<ARG>.md` to refresh your memory of the scope and the proposed change.
-2. Edit only files listed in the plan's `scope`. The fence will deny any edit outside the scope, and any edit to `note/`.
-3. When the plan is executed to completion, invoke `Skill(skill="act-mark", args="<ARG>")`. The user will be prompted (via the `ask` permission rule); on accept, the post-skill-use hook deletes `plan/<ARG>.md`.
+## Editing
 
-## Docblock rule
++ Usually, you do not need extra exploration after you start editing. 
++ Edit only files in the plan's `scope`. `note/*` is always denied.
++ For supported-language files, downgrade any touching item's validated docblock in the same Edit transaction.
 
-When you edit any file whose extension is supported (see `skills/act/lang/`), every item your edit touches that currently carries a **validated-form docblock** must be downgraded to the unvalidated form **in the same Edit transaction**. Read `skills/act/lang/<lang>.md` for the concrete before/after for that language. You may never write a validated-form docblock directly — only `/validate-mark` produces those. A `PreToolUse(Edit|Write)` hook rejects any edit that violates this rule and tells you which item to downgrade.
+## After Editing
 
-Bash is available but each invocation requires user confirmation.
+Invoke skill `/validate-mark ...` to upgrade docblocks to validated. 
+Invoke skill `/act-mark <NAME>` directly to delete `plan/<NAME>.md`.
+
+## Anti-Pattern
+
+What should not happen in `/act`:
+- Editing files outside the plan's `scope`.
+- Generate a validated-form docblock during Editing — only `/validate-mark` produces those.

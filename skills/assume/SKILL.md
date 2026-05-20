@@ -1,6 +1,6 @@
 ---
 name: assume
-description: Trigger this when you have a question/confusion. Enter `assume` mode to explore and write a note to `note/<NAME>.md`. 
+description: Trigger this when you have a question/confusion. Enter `assume` mode to write a note to `note/<NAME>.md`. 
 ---
 
 Contribute one note `note/<NAME>.md`
@@ -8,7 +8,6 @@ Contribute one note `note/<NAME>.md`
 ## Before Writing
 
 First, focus the scope: 
-
 - What is your question/confusion? Answer it as [Answer Question]
 - How answering this contribute to your current task? Answer it as [Answer Task]
 - Present [Answer Question] and [Answer Task] to the user and proceed to second step. 
@@ -49,4 +48,5 @@ Invoke skill `/validate note/<NAME>.md` directly.
 
 ## Anti-Pattern
 
+What should not happen in `/assume`:
 - Fields other than `vars` and `validated` in frontmatter. For example, `name` and `description`. 
