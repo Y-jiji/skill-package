@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import sys
 from pathlib import Path
 
@@ -95,29 +96,33 @@ class PostMark:
         self._notify("undocumented items:\n" + "\n".join(lines))
 
     def _apply_validate_mark(self):
+        args = shlex.split(self._args)
+        if not args:
+            self._notify("validate-mark: no marks given")
+            return
+        lines = [self._apply_one_mark(a)[1] for a in args]
+        self._notify("\n".join(lines))
+
+    def _apply_one_mark(self, arg):
         item_filter = None
-        path_part = self._args
-        if "::" in self._args:
-            path_part, item_filter = self._args.split("::", 1)
+        path_part = arg
+        if "::" in arg:
+            path_part, item_filter = arg.split("::", 1)
         target = (self._root / path_part).resolve()
         try:
             rel = target.relative_to(self._root).as_posix()
         except ValueError:
-            return
+            return False, f"validate-mark target outside project: {path_part}"
         if not target.exists():
-            self._notify(f"validate-mark target not found: {path_part}")
-            return
+            return False, f"validate-mark target not found: {path_part}"
         if rel.startswith("note/") or rel.startswith("plan/"):
             sys.path.insert(0, str(Path(__file__).resolve().parent))
             from items import Items
             ok, reason = Items(self._root).validate(rel)
             if not ok:
-                self._notify(f"cannot validate {rel}: {reason}")
-            else:
-                self._notify(f"validated: {rel}")
-            return
-        ok, msg = self._convert_code_file(target, item_filter)
-        self._notify(msg)
+                return False, f"cannot validate {rel}: {reason}"
+            return True, f"validated: {rel}"
+        return self._convert_code_file(target, item_filter)
 
     def _convert_code_file(self, target, item_filter):
         sys.path.insert(0, str(Path(__file__).resolve().parent))

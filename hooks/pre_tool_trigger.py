@@ -301,7 +301,7 @@ RULES: dict[str, list[object]] = {
         Matcher(Write(r"plan/.*\.md"), "Allow"),
         Matcher(WebFetch(), "Deny", "WebFetch info should be consolidated to note/ via assume skill"),
         Matcher(WebSearch(), "Deny", "WebSearch info should be consolidated to note/ via assume skill"),
-    ],
+    ] + list(_BASH_SAFE),
     "act": list(_BASE) + [
         Matcher(Write(r"note/.*"), "Deny"),
         Matcher(Edit(r"note/.*"), "Deny"),

@@ -14,8 +14,8 @@ Steps when the target is `note/*.md` or `plan/*.md`:
 
 Steps when the target is a code file:
 
-1. Enumerate the items in the file (functions, classes, etc. — as defined per language in `hooks/docblock.py`'s LANGS table). For each item, show its current unvalidated docblock (or note "no docblock — agent must write one before validation can succeed").
-2. Ask the user which items they accept. For partial validation, invoke `Skill(skill="validate-mark", args="<PATH>::<item_name>")` per item; for whole-file validation, invoke `Skill(skill="validate-mark", args="<PATH>")`.
+1. Enumerate the items in the file (functions, classes, etc. — see `skills/validate-mark/lang/<lang>.md` for what counts per language). For each item, show its current unvalidated docblock (or note "no docblock — agent must write one before validation can succeed").
+2. Ask the user which items they accept. Batch the accepted marks into a single call: `Skill(skill="validate-mark", args="<MARK1> <MARK2> ...")` where each `<MARK>` is `<PATH>::<item_name>` (one item) or `<PATH>` (whole file). The hook parses `args` with `shlex.split`, so wrap any mark containing spaces or shell metachars in single quotes (e.g. `'odd path/file.py::foo'`). One call = one `ask` prompt; the aggregated result reports each mark's outcome.
 3. The post-skill-use hook rewrites the unvalidated marker to the validated marker for the targeted item(s); see `skills/validate-mark/lang/<lang>.md` for the concrete rewrite.
 
 Read-only tools (`Read`, `Grep`, `Glob`) are available for verifying evidence you already have in context. You may not write or edit any file; the only mutating action is invoking another skill (`/validate-mark`).
