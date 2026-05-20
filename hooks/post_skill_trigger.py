@@ -73,35 +73,25 @@ class PostMark:
 
     def _apply_undocumented(self):
         sys.path.insert(0, str(Path(__file__).resolve().parent))
-        from items import Lang, CodeDoc
+        from items import Items, Lang
         arg = self._args or "."
         target = (self._root / arg).resolve()
         if not target.exists():
             self._notify(f"undocumented: {arg}: no such file or directory")
             return
-        files = []
-        if target.is_dir():
-            for f in sorted(target.rglob("*")):
-                if f.is_file() and Lang.for_path(str(f)) is not None:
-                    files.append(f)
-        else:
-            if Lang.for_path(str(target)) is None:
-                self._notify(f"undocumented: {arg}: unsupported file type")
-                return
-            files.append(target)
+        if target.is_file() and Lang.for_path(str(target)) is None:
+            self._notify(f"undocumented: {arg}: unsupported file type")
+            return
         lines = []
-        for f in files:
-            try:
-                rel = f.relative_to(self._root).as_posix()
-            except ValueError:
-                rel = str(f)
-            for item in CodeDoc(f).items():
-                state = item.status()
-                if state in {"none", "unvalidated"}:
-                    lines.append(f"{rel}::{item.name} status={state}")
+        for item_id, state in Items(self._root).list(target):
+            if state in {"none", "unvalidated"}:
+                lines.append(f"{item_id} status={state}")
         if not lines:
             self._notify(f"undocumented {arg}: no items need attention")
             return
+        max_lines = 20
+        if len(lines) > max_lines:
+            lines = lines[:max_lines] + [f"... and there are {len(lines) - max_lines} more"]
         self._notify("undocumented items:\n" + "\n".join(lines))
 
     def _apply_validate_mark(self):
@@ -185,7 +175,13 @@ class PostMark:
 
     @staticmethod
     def _notify(msg):
-        sys.stdout.write(json.dumps({"systemMessage": msg, "suppressOutput": True}))
+        sys.stdout.write(json.dumps({
+            "systemMessage": msg,
+            "hookSpecificOutput": {
+                "hookEventName": "PostToolUse",
+                "additionalContext": msg,
+            },
+        }))
 
 
 # Write the state dict to `.claude/semaphore.json`.

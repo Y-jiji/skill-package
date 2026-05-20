@@ -83,7 +83,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$HOME/.claude/hooks/post_skill_trigger.py\""
+            "command": "uv run \"$HOME/.claude/hooks/post_skill_trigger.py\""
           }
         ]
       }

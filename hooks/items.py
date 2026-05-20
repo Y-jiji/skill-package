@@ -531,6 +531,49 @@ class Items:
             return None
         return CodeDoc(path)
 
+    def list(self, target):
+        target = Path(target).resolve()
+        if not target.exists():
+            return
+        visible = self._git_visible_set()
+        if target.is_file():
+            if Lang.for_path(str(target)) is None:
+                return
+            if visible is not None and target not in visible:
+                return
+            files = [target]
+        else:
+            files = []
+            for f in sorted(target.rglob("*")):
+                if not f.is_file():
+                    continue
+                if Lang.for_path(str(f)) is None:
+                    continue
+                if visible is not None and f.resolve() not in visible:
+                    continue
+                files.append(f)
+        for f in files:
+            try:
+                rel = f.relative_to(self._root).as_posix()
+            except ValueError:
+                rel = str(f)
+            for item in CodeDoc(f).items():
+                yield f"{rel}::{item.name}", item.status()
+
+    def _git_visible_set(self):
+        if not (self._root / ".git").exists():
+            return None
+        import subprocess
+        try:
+            r = subprocess.run(
+                ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+                cwd=str(self._root), capture_output=True, text=True, check=True,
+            )
+        except Exception:
+            return None
+        return {(self._root / line).resolve()
+                for line in r.stdout.splitlines() if line}
+
 
 def _format_item(item_id, status, deps):
     if deps:
