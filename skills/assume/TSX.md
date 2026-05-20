@@ -2,16 +2,18 @@
 
 Extensions: `.tsx`
 
-Item kinds: same as `.ts` — `function foo() {}` declarations, `class` declarations, `interface` declarations, method definitions inside a class body. JSX syntax adds no new addressable items.
+Item kinds and scope wrappers: same as `.ts` — parsed by tree-sitter-typescript's `language_tsx`. JSX syntax adds no addressable items.
 
-Label form: `path/to/file.tsx::name`. The label uses only the bare identifier — **methods are named without their class prefix**.
+Label form: same as `.ts`. Methods on class components are scoped under the class.
 
-Arrow-function components (`const Button = (props) => <div/>`) are **not** addressable as items — they're `const` declarations, not function declarations. Rewrite as `function Button(props) { return <div/>; }` if you need to address the component as an item.
+Arrow-function components (`const Button = (props) => <div/>`) are NOT enumerated — rewrite as `function Button(props) { return <div/>; }` if you need to address them.
+
+Generics: same as `.ts` — name is bare; generic parameters NOT in the label.
 
 Examples (hypothetical):
 
-- `src/Button.tsx::Button` — a function-declaration component.
-- `src/Modal.tsx::Modal` — a class component.
-- `src/Modal.tsx::ModalProps` — an interface declaration.
+- `src/Button.tsx::Button` — function-declaration component.
+- `src/Modal.tsx::Modal::render` — method on class component.
+- `src/Modal.tsx::ModalProps` — top-level interface.
 
-Whole-file (`src/Button.tsx` alone) is **not** a valid label for `.tsx` — pick an item.
+Whole-file is **not** a valid label for `.tsx` — pick an item.

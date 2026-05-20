@@ -4,14 +4,22 @@ Extensions: `.js .jsx .mjs .cjs`
 
 Item kinds: `function foo() {}` declarations, `class` declarations, method definitions inside a class body.
 
-Label form: `path/to/file.js::name`. The label uses only the bare identifier — **methods are named without their class prefix**, so colliding method names within a file share a label.
+Scope wrappers: `class`. Methods inside a class get the class prefix.
 
-Arrow functions assigned to `const`, anonymous function expressions, and IIFEs are **not** addressable as items — they are not declarations. Either rewrite as `function name() {}` declarations, or pick a `class` / `function` boundary that contains them.
+Label form:
+
+- Top-level function: `path/to/file.js::func`
+- Top-level class: `path/to/file.js::Klass`
+- Method on class: `path/to/file.js::Klass::method`
+
+Arrow functions assigned to `const`, anonymous function expressions, and IIFEs are NOT enumerated — they aren't `function_declaration` nodes. Rewrite as declarations if you need to address them.
+
+Generics: JS has no generics.
 
 Examples (hypothetical):
 
-- `src/handlers.js::handleClick` — a function declaration.
-- `src/Counter.jsx::Counter` — a class declaration.
-- `src/Counter.jsx::increment` — a method on `Counter` (no class prefix).
+- `src/handlers.js::handleClick` — function declaration.
+- `src/Counter.jsx::Counter::increment` — method.
+- `src/Counter.jsx::Counter::constructor` — constructor (`method_definition` with name `constructor`).
 
-Whole-file (`src/handlers.js` alone) is **not** a valid label for `.js/.jsx/.mjs/.cjs` — pick an item.
+Whole-file is **not** a valid label for `.js/.jsx/.mjs/.cjs` — pick an item.

@@ -41,10 +41,12 @@ Choose one template based on the reframing:
 - It is a yes/no question: [Predicate](PREDICATE.md)
 - It is a design decision: [Design](DESIGN.md)
 
+You must follow one of these templates. 
+
 ## After Writing
 
 Invoke skill `/validate note/<NAME>.md` directly.
 
 ## Anti-Pattern
 
-- Fields other than `vars` and `validated` in frontmatter. 
+- Fields other than `vars` and `validated` in frontmatter. For example, `name` and `description`. 

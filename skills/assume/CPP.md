@@ -4,12 +4,21 @@ Extensions: `.c .h .cpp .cc .cxx .hpp .hh .hxx`
 
 Item kinds: free functions, `class` definitions, `struct` definitions.
 
-Label form: `path/to/file.cpp::name`. The label uses only the bare identifier — **namespaces and enclosing classes do not appear** in the label. Out-of-class member definitions are named by their bare method name; inline member functions defined inside the class body are not individually addressable. Colliding names within a file share a label — change the decomposition or pick a different boundary.
+Scope wrappers: `namespace`, `class`, `struct`. Methods defined inline inside a class/struct get the class prefix. Out-of-class member definitions (`int Foo::bar() { ... }` at namespace level) parse as top-level `function_definition`s whose `name` field doesn't include the qualifier — they collide with the inline-form label.
+
+Label form:
+
+- Top-level: `path/to/file.cpp::func` / `::Klass` / `::Vec3`
+- Method inside class: `path/to/file.cpp::Klass::method`
+- Inside nested namespace: `path/to/file.cpp::ns1::ns2::Klass::method`
+- Anonymous `namespace { ... }`: returns None — its contents appear unscoped.
+
+Generics (templates): `template<typename T> class Vec` → name is bare `Vec`; specializations like `template<> class Vec<int>` also have name `Vec`. Template parameters are NOT in the label.
 
 Examples (hypothetical):
 
-- `src/geometry.cpp::area` — a free function.
-- `include/rect.hpp::Rect` — a class.
-- `include/vec.hpp::Vec3` — a struct.
+- `src/geometry.cpp::geom::Point::area` — method on class in namespace.
+- `src/util.cpp::ns1::ns2::helper` — function in nested namespace.
+- `include/vec.hpp::Vec3` — top-level struct.
 
-Whole-file (`src/geometry.cpp` alone) is **not** a valid label for any of these extensions — pick an item.
+Whole-file is **not** a valid label for any of these extensions — pick an item.

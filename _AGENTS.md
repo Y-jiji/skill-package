@@ -15,4 +15,7 @@ Roles: `user` and `agent`
     2. /propose a plan file, then /act it through the normal flow.
     ```
     You should proactively enter `/propose` immediately. 
-    Just pick the next mode you should enter and call the corresponding skill.  
+    Just pick the next mode you should enter and call the corresponding skill. 
+    Simple Verdict: 
+    + When you are able to ask the user `Want me to ...` or `Do you like ...`, it likely means you can proceed.
+    + Does it involve a new design decision, or a contradictive design decision?

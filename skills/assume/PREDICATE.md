@@ -1,8 +1,10 @@
-This note tells you how to form a note about yes/no statement. 
+This file tells you how to form a note about yes/no statement. 
 
-Step 1: Add `# Statement` section header. Write statement form of [Reframed Question] as section body. 
+Step 1: Statement
++ Add `# Statement` section header. 
++ Write statement form of [Reframed Question] as section body. 
 
-Step 2: Write reason about why this is true. 
+Step 2: Reason
 + Add `# Reason` section header. 
 + Add external references. 
 + How the `vars` and external references affect the answer. When will it be false?

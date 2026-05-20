@@ -272,8 +272,10 @@ class Lang:
         `tree`: tree-sitter Tree for `src`. \
         `src`: file source bytes (the same buffer `tree` was parsed from). \
         `@return`: list of `(path, qname, body, doc)`. `path` is `_item_name(node)` joined with \
-        any enclosing `scope_kinds` labels (Rust only) via `::`; `qname` appends `@L<line>` for \
-        uniqueness; `body` is the node's source bytes; `doc` is `_attach`'s tuple or None. \
+        every enclosing `scope_kinds` ancestor's `_scope_label` via `::`; `qname` appends \
+        `@L<line>` for uniqueness; `body` is the node's source bytes; `doc` is `_attach`'s \
+        tuple or None. Every supported language declares its own `scope_kinds` covering \
+        class/interface/namespace constructs; Rust additionally special-cases `impl_item`. \
         O(n) over node count; one shallow recursion frame per scope nest depth.
         """
         results = []
