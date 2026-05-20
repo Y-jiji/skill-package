@@ -1,0 +1,6 @@
+{
+  "mode": "act",
+  "scope": [
+    "hooks/pre_tool_trigger.py"
+  ]
+}

@@ -20,6 +20,6 @@ Steps:
 
 ## Docblock rule
 
-When you edit any file whose extension is supported (see `skills/act/lang/`), every item your edit touches that currently carries a **validated-form docblock** must be downgraded to the unvalidated form **in the same Edit/MultiEdit transaction**. Read `skills/act/lang/<lang>.md` for the concrete before/after for that language. You may never write a validated-form docblock directly — only `/validate-mark` produces those. The `hooks/docblock.py` PreToolUse hook rejects any Edit/Write/MultiEdit that violates this rule and tells you which item to downgrade.
+When you edit any file whose extension is supported (see `skills/act/lang/`), every item your edit touches that currently carries a **validated-form docblock** must be downgraded to the unvalidated form **in the same Edit transaction**. Read `skills/act/lang/<lang>.md` for the concrete before/after for that language. You may never write a validated-form docblock directly — only `/validate-mark` produces those. The `hooks/post_write_trigger.py` PreToolUse hook rejects any Edit/Write that violates this rule and tells you which item to downgrade.
 
 Bash is available but each invocation requires user confirmation.
