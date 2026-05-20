@@ -9,9 +9,9 @@ Contribute one note `note/<NAME>.md`
 
 First, focus the scope: 
 
-- What is your question/confusion? Answer it as [Answer A]
-- How answering this contribute to your current task? Answer it as [Answer B]
-- Present [Answer A] and [Answer B] to the user and proceed to second step. 
+- What is your question/confusion? Answer it as [Answer Question]
+- How answering this contribute to your current task? Answer it as [Answer Task]
+- Present [Answer Question] and [Answer Task] to the user and proceed to second step. 
 
 Second, reframe the question to [Reframed Question]. 
 - Reference [Question Conversion](FRAME.md)
@@ -43,4 +43,8 @@ Choose one template based on the reframing:
 
 ## After Writing
 
-Invoke skill `/validate note/<NAME>.md` directly. 
+Invoke skill `/validate note/<NAME>.md` directly.
+
+## Anti-Pattern
+
+- Fields other than `vars` and `validated` in frontmatter. 

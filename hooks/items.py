@@ -187,7 +187,8 @@ class Lang:
                 {".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".c", ".h"},
                 {"function_definition", "class_specifier", "struct_specifier"},
                 "preceding_comment_cstyle", "cstyle_double_star",
-                ("tree_sitter_cpp", "language")),
+                ("tree_sitter_cpp", "language"),
+                scope_kinds={"namespace_definition", "class_specifier", "struct_specifier"}),
             cls("rust",
                 {".rs"},
                 {"function_item", "struct_item", "enum_item", "trait_item"},
@@ -198,30 +199,35 @@ class Lang:
                 {".py"},
                 {"function_definition", "class_definition"},
                 "python_docstring", "python_docstring_present",
-                ("tree_sitter_python", "language")),
+                ("tree_sitter_python", "language"),
+                scope_kinds={"class_definition"}),
             cls("js",
                 {".js", ".jsx", ".mjs", ".cjs"},
                 {"function_declaration", "method_definition", "class_declaration"},
                 "preceding_comment_cstyle", "cstyle_double_star",
-                ("tree_sitter_javascript", "language")),
+                ("tree_sitter_javascript", "language"),
+                scope_kinds={"class_declaration"}),
             cls("ts",
                 {".ts"},
                 {"function_declaration", "method_definition",
                  "class_declaration", "interface_declaration"},
                 "preceding_comment_cstyle", "cstyle_double_star",
-                ("tree_sitter_typescript", "language_typescript")),
+                ("tree_sitter_typescript", "language_typescript"),
+                scope_kinds={"class_declaration", "interface_declaration", "internal_module"}),
             cls("tsx",
                 {".tsx"},
                 {"function_declaration", "method_definition",
                  "class_declaration", "interface_declaration"},
                 "preceding_comment_cstyle", "cstyle_double_star",
-                ("tree_sitter_typescript", "language_tsx")),
+                ("tree_sitter_typescript", "language_tsx"),
+                scope_kinds={"class_declaration", "interface_declaration", "internal_module"}),
             cls("java",
                 {".java"},
                 {"method_declaration", "class_declaration",
                  "interface_declaration", "constructor_declaration"},
                 "preceding_comment_cstyle", "cstyle_double_star",
-                ("tree_sitter_java", "language")),
+                ("tree_sitter_java", "language"),
+                scope_kinds={"class_declaration", "interface_declaration"}),
         ]
 
     def parser(self):
@@ -372,18 +378,16 @@ class Lang:
     @staticmethod
     def _scope_label(node):
         """
-        Return the scope-prefix label for a Rust scope wrapper, or None if no usable label. \
-        `node`: a `mod_item` or `impl_item` tree-sitter node. \
-        `@return`: bare module name for `mod_item`; for `impl_item`, the implementing type \
-        name (from the `type` field), or `<Type as Trait>` when the impl carries a `trait` \
-        field. Returns None if the `type` subtree has no `type_identifier` leaf — caller \
-        then skips the scope (the item still appears, just unscoped).
+        Return the scope-prefix label for a scope-wrapper node, or None if no usable label. \
+        Rust `impl_item` is special-cased: returns the `type` field's full source text \
+        (preserves generics like `Box<T>`), or `<Type as Trait>` when the impl carries a \
+        `trait` field too. \
+        All other scope kinds — `mod_item`, `class_definition`/`class_specifier`/`class_declaration`, \
+        `struct_specifier`, `interface_declaration`, `namespace_definition`, `internal_module` — \
+        use `node.child_by_field_name("name").text`. \
+        Returns None when the node has no `name` field (e.g. anonymous C++ namespace) — the \
+        caller then skips the scope and items inside the node appear unscoped.
         """
-        if node.type == "mod_item":
-            n = node.child_by_field_name("name")
-            if n is not None and n.text is not None:
-                return n.text.decode("utf-8", errors="replace")
-            return None
         if node.type == "impl_item":
             type_node = node.child_by_field_name("type")
             if type_node is None or type_node.text is None:
@@ -394,6 +398,9 @@ class Lang:
                 return target
             trait = trait_node.text.decode("utf-8", errors="replace")
             return f"<{target} as {trait}>"
+        n = node.child_by_field_name("name")
+        if n is not None and n.text is not None:
+            return n.text.decode("utf-8", errors="replace")
         return None
 
 

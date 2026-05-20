@@ -25,8 +25,9 @@ PostToolUse half can do item-granular invalidation.
 PostToolUse: invalidation cascade. Reads the stash; for the matching
 file calls `Items(root).invalidate(rel)` (file-level vars) plus
 `Items(root).invalidate(f"{rel}::{name}")` for each body-changed
-item (item-level vars), then emits a single `systemMessage` listing
-every distinct flipped dependent.
+item (item-level vars), then emits the "Marked stale: ..." line as
+both `systemMessage` (user) and `hookSpecificOutput.additionalContext`
+(agent) so the cascade is visible to both sides.
 
 Per-language parsing config and helpers come from `items.Lang`; the
 graph operations come from `items.Items`.
@@ -237,9 +238,13 @@ def handle_pre_tool_use(data):
 def handle_post_tool_use(data):
     """
     PostToolUse entry point. Reads the PreToolUse stash; for the matching \
-    file calls Items.invalidate(rel) for file-level vars and \
-    Items.invalidate(f"{rel}::{name}") for each body-changed item, then \
-    emits one systemMessage listing every distinct flipped dependent.
+    file calls `Items.invalidate(rel)` (file-level vars) plus \
+    `Items.invalidate(f"{rel}::{name}")` for each body-changed item. \
+    When any dependent flips, emits the "Marked stale: ..." line as BOTH \
+    `systemMessage` (user-visible UI banner) AND \
+    `hookSpecificOutput.additionalContext` (agent-visible system-reminder \
+    on the next turn) — same dual-visibility pattern as \
+    `hooks/post_skill_trigger.py::PostMark._notify`.
     """
     file_path = (data.get("tool_input") or {}).get("file_path")
     if not file_path:
@@ -256,9 +261,13 @@ def handle_post_tool_use(data):
     for name in _load_changes(root, rel):
         flipped.update(items.invalidate(f"{rel}::{name}"))
     if flipped:
+        msg = f"Marked stale: {', '.join(sorted(flipped))}"
         sys.stdout.write(json.dumps({
-            "systemMessage": f"Marked stale: {', '.join(sorted(flipped))}",
-            "suppressOutput": True,
+            "systemMessage": msg,
+            "hookSpecificOutput": {
+                "hookEventName": "PostToolUse",
+                "additionalContext": msg,
+            },
         }))
 
 

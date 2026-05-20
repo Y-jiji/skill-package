@@ -1,16 +1,14 @@
 ---
 name: semaphore-reset-on-session-and-stop
-description: Semaphore state is currently reset to default on SessionStart and Stop events
-type: codebase
+description: After the refactor, no project-local hook resets the semaphore on SessionStart or Stop; the only project-local semaphore writer is hooks/post_skill_trigger.py::save_state, called from PostMark on PostToolUse(Skill).
 vars:
-  - hooks/semaphore.py
-validated: false
+  - hooks/post_skill_trigger.py::save_state
+  - hooks/post_skill_trigger.py::PostMark
+validated: true
 ---
 
-In `hooks/semaphore.py`, the entry-point `main()` (lines 322–339) dispatches on `hook_event_name`. At lines 329–331, when the event is `SessionStart` or `Stop`, the script unconditionally calls `save_state({"skill": "default", "scope": []})` and returns. No other event resets the state.
+# Claim
 
-The module docstring at lines 6–7 documents this same behavior: "`SessionStart`, `Stop`: reset state to `{"skill": "default", "scope": []}`".
+The legacy `hooks/semaphore.py` is gone. The only project-local writer of `.claude/semaphore.json` is `save_state`, called by `PostMark` on `PostToolUse(Skill)` — for `/assume`, `/validate`, `/propose`, `/act` (set mode) and `/act-mark` (reset to default).
 
-State is otherwise written only by `handle_post_skill()` (line 317), which records the skill (and `act` scope) on `PostToolUse(Skill)`. Consequently, the only writers of `.claude/semaphore.json` today are: (a) the SessionStart/Stop reset branch, and (b) PostToolUse(Skill) recording the new skill.
-
-This means that across sessions and after each agent `Stop`, the semaphore is wiped back to `default` regardless of which skill the previous turn ended in.
+**No project-local hook handles `SessionStart` or `Stop`** — any per-session reset would have to come from user-global hook config outside this repo. Within a session, `/act-mark` wipes the semaphore to `{"mode": "", "scope": []}`; across session boundaries, the previous turn's mode persists unless user-global hooks intervene.

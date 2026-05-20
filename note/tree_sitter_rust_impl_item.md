@@ -1,26 +1,20 @@
 ---
 name: tree_sitter_rust_impl_item
-description: hooks/items.py resolves impl_item names via the "type" field defined by tree-sitter-rust
+description: Lang._scope_label resolves the impl_item target by reading node.child_by_field_name("type").text directly — the full source text of the type field, with generics preserved; trait impls produce <TypeText as TraitText>.
 vars:
-  - hooks/items.py
-validated: false
+  - hooks/items.py::Lang::_scope_label
+validated: true
 ---
 
-`Lang._impl_target_name` in `hooks/items.py` calls
-`node.child_by_field_name("type")` on an `impl_item` node and then
-walks the returned subtree depth-first looking for the first
-`type_identifier` leaf.
+# Claim
 
-This relies on tree-sitter-rust exposing the implementing type via the
-field name `type` — the lone type in `impl Foo`, or the type after
-`for` in `impl Trait for Foo`. The trait, when present, is exposed via
-the field `trait`. Wrapping nodes (`generic_type`,
-`scoped_type_identifier`, `reference_type`, …) are unwrapped by the
-depth-first walk to reach the leaf `type_identifier`.
+`_scope_label`'s `impl_item` branch reads `node.child_by_field_name("type").text.decode(...)` directly — the FULL source text of the `type` field. There is no depth-first walk for a `type_identifier` leaf (the prior `_impl_target_name` design); the label IS whatever bytes span the type subtree.
 
-Edge cases the current walk does not name:
+Consequences:
 
-- `impl Trait for ()`, `impl Trait for [u8; 4]`, `impl Trait for *const
-  T`, and similar where the implementing type subtree contains no
-  `type_identifier` leaf — `_impl_target_name` returns None and the
-  caller falls back to `<anonymous@…>`.
+- `impl Foo { fn bar() }` → `Foo::bar`.
+- `impl Box<T> { fn bar() }` → `Box<T>::bar` (generics preserved).
+- `impl Box<u32> { fn bar() }` → `Box<u32>::bar` (specializations distinct).
+- `impl Trait for Box<T> { fn fmt() }` → `<Box<T> as Trait>::fmt`.
+
+Returns None when `type_node.text is None`; the caller skips the scope and inner items appear unscoped.
