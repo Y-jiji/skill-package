@@ -78,7 +78,7 @@ class PostMark:
             return
         if target.exists():
             target.unlink()
-            self._notify(f"deleted plan/{self._args}.md\nreturned to default mode. Available: Read, Skill, ToolSearch")
+            self._notify(f"deleted plan/{self._args}.md\nreturned to default mode. Available: Read, Skill, ToolSearch, Bash (safe list)")
 
     def _apply_undocumented(self):
         sys.path.insert(0, str(Path(__file__).resolve().parent))

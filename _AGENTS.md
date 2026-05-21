@@ -39,7 +39,7 @@ Compound commands (`&&`, `||`, pipes `|`, redirects `>` `2>`, substitutions `$()
 + Max 6 args per command.
 
 ### Default mode
-`default` mode allows only `Read`, `Skill`, and `ToolSearch`. Transition to a skill to unlock Bash and `Edit`/`Write`.
+`default` mode allows `Read`, `Skill`, `ToolSearch`, and safe Bash commands. Transition to a skill to unlock `Edit`/`Write`.
 
 ### COMMAND.jsonl
 Each line of `COMMAND.jsonl` in the project root is a JSON array `["cmd", "arg_regex", ...]` allow-listed for `validate` and `act` modes; each element is a regex matched against the corresponding token.

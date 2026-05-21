@@ -360,7 +360,7 @@ _BASE = [
 # verdict decides. No match → handle_pre_tool_use emits a deny. \
 # `RULES["act"]`'s scope predicate reads live `scope` from state on each check.
 RULES: dict[str, list[object]] = {
-    "default": list(_BASE),
+    "default": list(_BASE) + list(_BASH_SAFE) + list(BASH_TEST),
     "assume": list(_BASE) + [
         Matcher(Write(r"note/.*\.md"), "Allow"),
         Matcher(Edit(r"note/.*\.md"), "Allow"),
