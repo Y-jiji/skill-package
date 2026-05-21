@@ -2,7 +2,7 @@
 vars:
   - hooks/post_skill_trigger.py::PostMark
   - hooks/pre_tool_trigger.py::handle_pre_tool_use
-validated: true
+validated: false
 ---
 
 **Claim.** Claude Code's official `SKILL.md` frontmatter (per `code.claude.com/docs/en/skills`) supports only these fields, all optional except `description` (recommended):

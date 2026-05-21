@@ -4,7 +4,7 @@ vars:
   - skills/validate-mark/PYTHON.md
   - hooks/post_skill_trigger.py::PostMark
   - AGENTS.md
-validated: true
+validated: false
 ---
 
 For `.py` files, the docblock system tracks two forms attached to `function_definition` and `class_definition` items:

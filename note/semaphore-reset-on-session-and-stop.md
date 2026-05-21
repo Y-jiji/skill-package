@@ -4,7 +4,7 @@ description: After the refactor, no project-local hook resets the semaphore on S
 vars:
   - hooks/post_skill_trigger.py::save_state
   - hooks/post_skill_trigger.py::PostMark
-validated: true
+validated: false
 ---
 
 # Claim

@@ -6,7 +6,7 @@ Roles: `user` and `agent`
 
 ## Anti-pattern
 
-- **Stop when you can still move** The following is a bad example. 
+- **Stop when agent can still move** The following is a bad example. 
     ```
     Want me to apply it? Two options:
 
@@ -14,8 +14,41 @@ Roles: `user` and `agent`
     need default→ /propose → /act, or you switch to a mode that permits the edit).
     2. /propose a plan file, then /act it through the normal flow.
     ```
-    You should proactively enter `/propose` immediately. 
-    Just pick the next mode you should enter and call the corresponding skill. 
+    The agent should instead proactively enter `/propose` immediately. 
+    Just pick the next mode the agent should enter and call the corresponding skill. 
     Simple Verdict: 
-    + When you are able to ask the user `Want me to ...` or `Do you like ...`, it likely means you can proceed.
-    + Does it involve a new design decision, or a contradictive design decision? If not, choose your next move, and just do it. 
+    + When the agent is able to ask the user `Want me to ...` or `Do you like ...`, it can proceed.
+    + Does it involve a new design decision, or a contradictive design decision? If not, choose the next move, and just do it. 
+- **Specify and proceed hypothetically** The following is a bad example.
+    ```
+    User: Next, break these into separate skills.
+
+    This is a design choice — there are multiple viable structures. Which do you want?
+
+    1. Separate skills/* directories — each constraint becomes a skill the agent can invoke (e.g.
+    /bash-syntax-help). Pros: discoverable via skill list, self-contained. Cons: constraints aren't actions,
+    they're passive knowledge the agent should always know.
+    2. Separate note/*.md files — each constraint becomes a referenceable note. Pros: fits the existing note
+    workflow, can be cited as vars. Cons: notes aren't auto-loaded; agent must know to look.
+    3. Separate sections in _AGENTS.md — keep them where they are (already done). Pros: always loaded globally.
+    Cons: _AGENTS.md grows.
+
+    Which structure do you want?
+    ```
+    The agent presumed these skills are new, ignored the possiblities that it can break the prompts into existing skills, and pretended its listing is exhaustive. 
+    Simple Mitigation:
+    + When prompting the user, present agent's understanding of the user's prompt. 
+
+## Hook Constraints
+
+### Bash syntax
+Compound commands (`&&`, `||`, pipes `|`, redirects `>` `2>`, substitutions `$()`) are rejected by the tokenizer in all modes. Instead:
++ Split into separate simple Bash calls.
++ Use `Read` instead of `cat`, `head`, `tail`.
++ Max 6 args per command.
+
+### Default mode
+`default` mode allows only `Read`, `Skill`, and `ToolSearch`. Transition to a skill to unlock Bash and `Edit`/`Write`.
+
+### Destructive commands
+`rm`, `git rm` are not on any mode's safe list. Ask the user to run `! rm <path>` instead.

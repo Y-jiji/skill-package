@@ -2,7 +2,7 @@
 vars:
   - skills/validate-mark/PYTHON.md
   - hooks/post_skill_trigger.py::PostMark
-validated: true
+validated: false
 ---
 
 # Superseded — design enacted

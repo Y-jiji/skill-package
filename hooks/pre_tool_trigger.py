@@ -254,7 +254,8 @@ _RE_GIT_SUB = (
 )
 
 _READ_CMDS = ("ls", "cat", "head", "tail", "wc", "less", "diff", "stat",
-              "du", "file", "realpath", "readlink", "basename", "dirname", "tree")
+              "du", "file", "realpath", "readlink", "basename", "dirname", "tree",
+              "mdview")
 _GREP_CMDS = ("grep", "egrep", "fgrep", "rg", "ag")
 _ZERO_ARG = ("pwd", "whoami", "hostname", "true", "false", "env", "date",
              "uname", "printenv", "popd")
@@ -290,6 +291,9 @@ _ROOT = Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()).resolve()
 _BASE = [
     ActPrecondition(_ROOT),
     Matcher(Read(".*"), "Allow"),
+    Matcher(lambda tn, ti: tn == "Read" and (ti.get("file_path") or "").startswith(
+        os.path.expanduser("~/.claude/skills/")), "Allow", "read from ~/.claude/skills/"),
+    Matcher(lambda tn, ti: tn == "Read", "Ask", "read outside project directory"),
     Matcher(Skill("validate-mark", ".*"), "Ask",
             "confirm /validate-mark side effect"),
     Matcher(Skill("act-mark", ".*"), "Ask",

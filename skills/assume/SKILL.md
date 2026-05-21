@@ -46,6 +46,13 @@ You must follow one of these templates.
 
 Invoke skill `/validate note/<NAME>.md` directly.
 
+## Tool Availability
+
++ Bash (safe list — simple commands only, max 6 args)
++ `Read`
++ `Write`/`Edit` on `note/*` only
++ `WebFetch`, `WebSearch`
+
 ## Anti-Pattern
 
 What should not happen in `/assume`:

@@ -29,15 +29,13 @@ from pathlib import Path
 
 
 class PostMark:
-    """
-    PostToolUse(Skill) handler. Dispatches: \
-    - validate-mark → note/plan: Items.validate; code file: docblock rewrite (mode unchanged) \
-    - act-mark → delete plan/<args>.md, then reset semaphore to default \
-    - undocumented → walk path, emit items whose status is none/unvalidated (mode unchanged) \
-    - assume / validate / propose → save_state(mode=skill, scope=[]) \
-    - act → save_state(mode="act", scope=Items.scope("plan/<args>.md")) \
-    - anything else (harness builtins, third-party) → no semaphore change
-    """
+    # PostToolUse(Skill) handler. Dispatches: \
+    # - validate-mark → note/plan: Items.validate; code file: docblock rewrite (mode unchanged) \
+    # - act-mark → delete plan/<args>.md, then reset semaphore to default \
+    # - undocumented → walk path, emit items whose status is none/unvalidated (mode unchanged) \
+    # - assume / validate / propose → save_state + notify tool availability \
+    # - act → save_state + notify tool availability \
+    # - anything else (harness builtins, third-party) → no semaphore change
     def __init__(self, skill, args, root):
         self._skill = skill
         self._args = args
@@ -62,6 +60,14 @@ class PostMark:
                 if self._skill == "act" else []
             )
             save_state({"mode": self._skill, "scope": scope})
+            _MODE_TOOLS = {
+                "assume": "Bash, Read, Write/Edit on note/*, WebFetch, WebSearch",
+                "validate": "Bash, Read, no Write/Edit, only /validate-mark mutates",
+                "propose": "Bash, Read, Write/Edit on plan/*, WebFetch/WebSearch denied",
+                "act": "Bash, Read, Write/Edit on scope files, note/* denied",
+            }
+            tools = _MODE_TOOLS.get(self._skill, "")
+            self._notify(f"entered mode '{self._skill}'. Available: {tools}")
             return
 
     def _apply_act_mark(self):
@@ -72,7 +78,7 @@ class PostMark:
             return
         if target.exists():
             target.unlink()
-            self._notify(f"deleted plan/{self._args}.md")
+            self._notify(f"deleted plan/{self._args}.md\nreturned to default mode. Available: Read, Skill, ToolSearch")
 
     def _apply_undocumented(self):
         sys.path.insert(0, str(Path(__file__).resolve().parent))

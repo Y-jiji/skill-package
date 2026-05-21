@@ -6,7 +6,7 @@ vars:
   - hooks/pre_tool_trigger.py::handle_pre_tool_use
   - hooks/pre_tool_trigger.py::Bash
   - hooks/pre_tool_trigger.py::ActPrecondition
-validated: true
+validated: false
 ---
 
 Source of truth: `PostMark` (`hooks/post_skill_trigger.py`) for the post-skill mode/scope dispatch; `handle_pre_tool_use` for the per-mode rule walk; `Bash` for the safe-bash predicate (token cap, deny tokens, tokenization safety); `ActPrecondition` for the `/act` precondition gate that runs first in every mode.

@@ -35,6 +35,13 @@ Third, match current codebase state:
 Invoke skill `/validate-mark ...` to upgrade docblocks to validated. 
 Invoke skill `/act-mark <NAME>` directly to delete `plan/<NAME>.md`.
 
+## Tool Availability
+
++ Bash (safe list — simple commands only, max 6 args)
++ `Read`
++ `Write`/`Edit` on plan's `scope` files only
++ `Write`/`Edit` on `note/*` denied
+
 ## Anti-Pattern
 
 What should not happen in `/act`:

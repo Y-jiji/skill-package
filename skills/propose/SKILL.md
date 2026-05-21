@@ -59,6 +59,13 @@ Step 3: Transition
 - Invoke skill `/validate plan/<NAME>.md` directly. 
 - If user confirms, invoke skill `/act <NAME>` directly.  
 
+## Tool Availability
+
++ Bash (safe list — simple commands only, max 6 args)
++ `Read`
++ `Write`/`Edit` on `plan/*` only
++ `WebFetch`/`WebSearch` denied — consolidate to `note/` via `/assume`
+
 ## Anti-Pattern
 
 What should not happen in `/propose`:

@@ -2,7 +2,7 @@
 vars:
   - hooks/post_skill_trigger.py::PostMark
   - skills/validate-mark/PYTHON.md
-validated: true
+validated: false
 ---
 
 # Inverted — Python upgrade IS implemented

@@ -4,7 +4,7 @@ description: PostToolUse hook output channels — which JSON fields reach the as
 vars:
   - hooks/post_skill_trigger.py::PostMark
   - hooks/post_write_trigger.py::handle_post_tool_use
-validated: true
+validated: false
 ---
 
 # PostToolUse hook output routing
