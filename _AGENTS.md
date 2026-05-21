@@ -6,21 +6,10 @@ Roles: `user` and `agent`
 
 ## Anti-pattern
 
-- **Stop when agent can still move** The following are two bad examples. 
-    ```
-    Want me to apply it? Two options:
-
-    1. Just edit hooks/pre_tool_trigger.py directly (I'm in /assume, Edit on hooks isn't allowed here — would
-    need default→ /propose → /act, or you switch to a mode that permits the edit).
-    2. /propose a plan file, then /act it through the normal flow.
-    ```
-    The agent should instead proactively enter `/propose` immediately. 
-    Simple Verdict: 
-    + When the agent is able to ask the user `Want me to ...` or `Do you like ...`, it can proceed. 
-    + Does it involve a new design decision, or a contradictive design decision? If not, choose the next move, and just do it. 
 - **Stuck in mode** The following is a bad example: 
     ```
-    I can't write it from default mode and it's a data file, not a code file for the propose/act workflow. Ask the user to create it:
+    I can't write it from default mode and it's a data file, not a code file for the propose/act workflow. 
+    Ask the user to create it.
     ```
     Simple Verdict: 
     + You can always get out of a mode using skills. MOVE YOUR FUCKING ASS. 
@@ -33,9 +22,7 @@ Roles: `user` and `agent`
     1. Separate skills/* directories — each constraint becomes a skill the agent can invoke (e.g.
     /bash-syntax-help). Pros: discoverable via skill list, self-contained. Cons: constraints aren't actions,
     they're passive knowledge the agent should always know.
-    2. Separate note/*.md files — each constraint becomes a referenceable note. Pros: fits the existing note
-    workflow, can be cited as vars. Cons: notes aren't auto-loaded; agent must know to look.
-    3. Separate sections in _AGENTS.md — keep them where they are (already done). Pros: always loaded globally.
+    2. Separate sections in _AGENTS.md — keep them where they are (already done). Pros: always loaded globally.
     Cons: _AGENTS.md grows.
 
     Which structure do you want?
@@ -54,9 +41,6 @@ Compound commands (`&&`, `||`, pipes `|`, redirects `>` `2>`, substitutions `$()
 
 ### Default mode
 `default` mode allows only `Read`, `Skill`, and `ToolSearch`. Transition to a skill to unlock Bash and `Edit`/`Write`.
-
-### Destructive commands
-`rm`, `git rm` are not on any mode's safe list. Ask the user to run `! rm <path>` instead.
 
 ### COMMAND.jsonl
 Each line of `COMMAND.jsonl` in the project root is a JSON array `["cmd", "arg_regex", ...]` allow-listed for `validate` and `act` modes; each element is a regex matched against the corresponding token.
