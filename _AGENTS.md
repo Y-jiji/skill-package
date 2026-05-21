@@ -8,22 +8,21 @@ Roles: `user` and `agent`
 
 - **Stuck in mode** The following is a bad example: 
     ```
-    I can't write it from default mode and it's a data file, not a code file for the propose/act workflow. 
-    Ask the user to create it.
+    I can't write it from default mode. 
+    Please run this yourself.
     ```
     Simple Verdict: 
     + You can always get out of a mode using skills. MOVE YOUR FUCKING ASS. 
+    + Have you tried ALL modes? `/propose` -> `/validate` -> `/act`
+
 - **Specify and proceed hypothetically** The following is a bad example.
     ```
     User: Next, break these into separate skills.
 
     This is a design choice — there are multiple viable structures. Which do you want?
 
-    1. Separate skills/* directories — each constraint becomes a skill the agent can invoke (e.g.
-    /bash-syntax-help). Pros: discoverable via skill list, self-contained. Cons: constraints aren't actions,
-    they're passive knowledge the agent should always know.
-    2. Separate sections in _AGENTS.md — keep them where they are (already done). Pros: always loaded globally.
-    Cons: _AGENTS.md grows.
+    1. Separate skills/* directories — each constraint becomes a skill.
+    2. Separate sections in _AGENTS.md — keep them where they are (already done). 
 
     Which structure do you want?
     ```
