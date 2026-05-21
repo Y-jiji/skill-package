@@ -406,7 +406,9 @@ def handle_pre_tool_use(data):
     tool_name = data.get("tool_name") or ""
     tool_input = data.get("tool_input") or {}
     state = load_state()
-    rules = RULES.get(state.get("mode") or "", RULES["default"])
+    mode = state.get("mode") or "default"
+    rules = RULES.get(mode, RULES["default"])
+    _suffix = f" [current mode: '{mode}' — use /propose, /assume, /validate, or /act to switch]"
 
     # ActPrecondition is the first entry of _BASE, so it runs first in every
     # mode and short-circuits to ("Deny", reason) on a malformed /act before
@@ -418,12 +420,12 @@ def handle_pre_tool_use(data):
         verdict, reason = result
         if verdict == "Allow":
             return None
-        return (verdict.lower(), reason)
+        return (verdict.lower(), reason + _suffix)
 
     if tool_name == "Bash":
         cmd = tool_input.get("command") or ""
-        return ("deny", f"bash command not on safe list: {cmd!r}")
-    return ("deny", f"{tool_name} not allowed in mode '{state.get('mode') or 'default'}'")
+        return ("deny", f"bash command not on safe list: {cmd!r}" + _suffix)
+    return ("deny", f"{tool_name} not allowed" + _suffix)
 
 
 if __name__ == "__main__":
