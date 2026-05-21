@@ -14,15 +14,16 @@ Roles: `user` and `agent`
     need default→ /propose → /act, or you switch to a mode that permits the edit).
     2. /propose a plan file, then /act it through the normal flow.
     ```
+    The agent should instead proactively enter `/propose` immediately. 
+    Simple Verdict: 
+    + When the agent is able to ask the user `Want me to ...` or `Do you like ...`, it can proceed. 
+    + Does it involve a new design decision, or a contradictive design decision? If not, choose the next move, and just do it. 
+- **Stuck in mode** The following is a bad example: 
     ```
     I can't write it from default mode and it's a data file, not a code file for the propose/act workflow. Ask the user to create it:
     ```
-    The agent should instead proactively enter `/propose` immediately. 
-    Just pick the next mode the agent should enter and call the corresponding skill. 
     Simple Verdict: 
-    + When the agent is able to ask the user `Want me to ...` or `Do you like ...`, it can proceed. 
-    + You can always get out of `default` method. 
-    + Does it involve a new design decision, or a contradictive design decision? If not, choose the next move, and just do it. 
+    + You can always get out of a mode using skills. MOVE YOUR FUCKING ASS. 
 - **Specify and proceed hypothetically** The following is a bad example.
     ```
     User: Next, break these into separate skills.
