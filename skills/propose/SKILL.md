@@ -8,19 +8,19 @@ Contribute one proposal to `plan/<NAME>.md`
 ## Before Writing
 
 First, focus the issue: 
-- What is current issue? Answer it as [Answer Issue]
-- Are there any assumptions in [Answer Issue]? Answer it as a bulletpoint list, [Answer Assumption]
-- Do all of [Answer Assumption] hold?
-    - Which of them can be directly acquired from `scope` files? [Answer Scope]
-    - Which of them references `vars`? [Answer Vars]
-    - Which of them can be classified to other cases? Answer as [Answer Other]
-- Present [Answer Issue], [Answer Scope], [Answer Vars], [Answer Other] to the user. 
+- What is current issue? Answer it as [Issue]
+- Are there any assumptions in [Issue]? Answer it as a bulletpoint list, [Assumption]
+- Do all of [Assumption] hold?
+    - Which of them can be directly acquired from `scope` files? [Scope]
+    - Which of them references `vars`? [Vars]
+    - Which of them can be classified to other cases? Answer as [Other]
+- Present [Issue], [Scope], [Vars], [Other] to the user. 
 
 Second, locate files and inspect code state to form code actions: 
-- Before working, if [Answer Other] is not empty, consolidate it them into `note/` using `/assume` skill before proceeding. 
-- What files are subject to change? Answer as [Answer Scope Edit]
-- How will you edit [Answer Scope Edit]? Answer as [Answer Transition]
-- Merge [Answer Scope Edit] into [Answer Scope]
+- Before working, if [Other] is not empty, consolidate it them into `note/` using `/assume` skill before proceeding. 
+- What files are subject to change? Answer as [Scope Edit]
+- How will you edit [Scope Edit]? Answer as [Transition]
+- Merge [Scope Edit] into [Scope]
 
 ## Frontmatter
 
@@ -37,21 +37,21 @@ Put the following in yaml frontmatter
 
 Step 1: Issue
 + Add `# Issue` section header
-+ Write the issue statement from [Answer Issue]
++ Write the issue statement from [Issue]
 + Max 100 words. 
 
 Step 2: Snapshot
 + Add `# Snapshot` section header
-+ Describe current code state description in [Answer Scope]
-+ Describe how it deviating from it affects [Answer Transition]
++ Describe current code state description in [Scope]
++ Describe how it deviating from it affects [Transition]
 + Max 5 lines, Max 80 word per line
 
 Step 3: Transition
 + Add `# Transition` section header
-+ Decompose [Answer Transition] by file path into subsections: 
++ Decompose [Transition] by file path into subsections: 
     + Use file path as subsection header. 
     + Write how new code behavior is different from old code.  
-    + State comment changes incurred by [Answer Transition]. 
+    + State comment changes incurred by [Transition]. 
     + Max 10 lines per subsection. 
 
 ## After Writing
@@ -71,5 +71,5 @@ Step 3: Transition
 What should not happen in `/propose`:
 - Fields other than `vars`, `scope` and `validated` in frontmatter. For example, `name` and `description`. 
 - Reference code files in `vars`. 
-- [Answer Transition] breach into `# Snapshot` section. 
-- Put comment changes in [Answer Transition]
+- [Transition] breach into `# Snapshot` section. 
+- Put comment changes in [Transition]
