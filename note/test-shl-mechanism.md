@@ -3,7 +3,7 @@ vars:
   - skills/act/SKILL.md
   - skills/validate/SKILL.md
   - _AGENTS.md
-validated: true
+validated: false
 ---
 
 # Statement

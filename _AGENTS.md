@@ -6,7 +6,7 @@ Roles: `user` and `agent`
 
 ## Anti-pattern
 
-- **Stop when agent can still move** The following is a bad example. 
+- **Stop when agent can still move** The following are two bad examples. 
     ```
     Want me to apply it? Two options:
 
@@ -14,10 +14,14 @@ Roles: `user` and `agent`
     need default→ /propose → /act, or you switch to a mode that permits the edit).
     2. /propose a plan file, then /act it through the normal flow.
     ```
+    ```
+    I can't write it from default mode and it's a data file, not a code file for the propose/act workflow. Ask the user to create it:
+    ```
     The agent should instead proactively enter `/propose` immediately. 
     Just pick the next mode the agent should enter and call the corresponding skill. 
     Simple Verdict: 
-    + When the agent is able to ask the user `Want me to ...` or `Do you like ...`, it can proceed.
+    + When the agent is able to ask the user `Want me to ...` or `Do you like ...`, it can proceed. 
+    + You can always get out of `default` method. 
     + Does it involve a new design decision, or a contradictive design decision? If not, choose the next move, and just do it. 
 - **Specify and proceed hypothetically** The following is a bad example.
     ```
@@ -52,3 +56,6 @@ Compound commands (`&&`, `||`, pipes `|`, redirects `>` `2>`, substitutions `$()
 
 ### Destructive commands
 `rm`, `git rm` are not on any mode's safe list. Ask the user to run `! rm <path>` instead.
+
+### COMMAND.jsonl
+Each line of `COMMAND.jsonl` in the project root is a JSON array `["cmd", "arg_regex", ...]` allow-listed for `validate` and `act` modes; each element is a regex matched against the corresponding token.

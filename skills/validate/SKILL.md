@@ -20,7 +20,7 @@ Steps when the target is a code file:
 
 ## Tool Availability
 
-+ Bash (safe list — simple commands only, max 6 args; commands in `TEST.shl` at project root are also allowed)
++ Bash (safe list — simple commands only, max 6 args; commands in `COMMAND.jsonl` at project root are also allowed)
 + `Read`
 + No `Write`/`Edit`
 + Only mutating action: invoking `/validate-mark`

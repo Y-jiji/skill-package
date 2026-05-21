@@ -318,22 +318,22 @@ _ROOT = Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()).resolve()
 
 def _load_bash_test(root):
     """
-    Read TEST.shl and return a Bash allow-list; empty list if file is absent. \
+    Read COMMAND.jsonl and return a Bash allow-list; empty list if file is absent. \
     `root`: project root Path \
-    `@return`: list of Bash matchers, one per non-blank non-comment line \
+    `@return`: list of Bash matchers, one per non-blank JSON array line \
     O(n) over line count; allocates one list
     """
-    p = root / "TEST.shl"
+    p = root / "COMMAND.jsonl"
     if not p.exists():
         return []
     result = []
     for line in p.read_text(encoding="utf-8").splitlines():
         line = line.strip()
-        if not line or line.startswith("#"):
+        if not line:
             continue
         try:
-            tokens = shlex.split(line)
-        except ValueError:
+            tokens = json.loads(line)
+        except (json.JSONDecodeError, TypeError, ValueError):
             continue
         if tokens:
             result.append(Bash(*tokens))
