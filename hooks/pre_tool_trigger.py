@@ -316,6 +316,31 @@ _BASH_SAFE = (
 
 _ROOT = Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()).resolve()
 
+def _load_bash_test(root):
+    """
+    Read TEST.shl and return a Bash allow-list; empty list if file is absent. \
+    `root`: project root Path \
+    `@return`: list of Bash matchers, one per non-blank non-comment line \
+    O(n) over line count; allocates one list
+    """
+    p = root / "TEST.shl"
+    if not p.exists():
+        return []
+    result = []
+    for line in p.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        try:
+            tokens = shlex.split(line)
+        except ValueError:
+            continue
+        if tokens:
+            result.append(Bash(*tokens))
+    return result
+
+BASH_TEST = _load_bash_test(_ROOT)
+
 _BASE = [
     ActPrecondition(_ROOT),
     Matcher(Read(".*"), "Allow"),
@@ -340,7 +365,7 @@ RULES: dict[str, list[object]] = {
         Matcher(WebFetch(), "Allow"),
         Matcher(WebSearch(), "Allow"),
     ] + list(_BASH_SAFE),
-    "validate": list(_BASE) + list(_BASH_SAFE),
+    "validate": list(_BASE) + list(_BASH_SAFE) + list(BASH_TEST),
     "propose": list(_BASE) + [
         Matcher(Write(r"plan/.*\.md"), "Allow"),
         Matcher(Edit(r"plan/.*\.md"), "Allow"),
@@ -352,7 +377,7 @@ RULES: dict[str, list[object]] = {
         Matcher(Edit(r"note/.*"), "Deny"),
         Matcher(Write(lambda rel: rel in (load_state().get("scope") or [])), "Allow"),
         Matcher(Edit(lambda rel: rel in (load_state().get("scope") or [])), "Allow"),
-    ] + list(_BASH_SAFE),
+    ] + list(_BASH_SAFE) + list(BASH_TEST),
     "validate-mark": [Matcher(ToolSearch(), "Allow")],
     "act-mark": [Matcher(ToolSearch(), "Allow")],
 }
