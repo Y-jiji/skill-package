@@ -30,7 +30,8 @@ Put the following in yaml frontmatter
     - Usually, we do not cite the code here, but in `scope`. 
 - `scope`: list of code file paths that requires modification. 
     - Make sure it does not overlap with `vars`
-    - `scope` is read anyways. 
+    - `scope` is edit file set + dependent file set. 
+    - Verdict: If any change in a file affects current plan, list it in `scope`
 - `validated: false`
 
 ## Body
@@ -76,4 +77,4 @@ What should not happen in `/propose`:
 - Hide explored information from [Other]
 - Present [Scope Edit] to user. 
 - Present [Assumption] to user. 
-- Think all the files in `scope` must be edited -- actually, all dependencies must be listed in it. 
+- Think `scope` == edit file set. 
