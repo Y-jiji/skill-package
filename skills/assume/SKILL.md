@@ -23,22 +23,22 @@ Put the following in yaml frontmatter
 
 - `vars`: a list of items that affects the answer to [Reframed Question]. 
     - Item can be from code files or note folder. 
-    - Format for cite items, by file extension:
-        - Format for `.c`/`.h`/`.cpp`/`.cc`/`.cxx`/`.hpp`/`.hh`/`.hxx`: [CPP](CPP.md)
-        - Format for `.java`: [JAVA](JAVA.md)
-        - Format for `.js`/`.jsx`/`.mjs`/`.cjs`: [JS](JS.md)
-        - Format for `.py`: [PY](PYTHON.md)
-        - Format for `.rs`: [RS](RUST.md)
-        - Format for `.ts`: [TS](TS.md)
-        - Format for `.tsx`: [TSX](TSX.md)
+    - Format for cite code file items, by file extension:
+        - `.c`/`.h`/`.cpp`/`.cc`/`.cxx`/`.hpp`/`.hh`/`.hxx`: Read [CPP](CPP.md)
+        - `.java`: Read [JAVA](JAVA.md)
+        - `.js`/`.jsx`/`.mjs`/`.cjs`: Read [JS](JS.md)
+        - `.py`: Read [PY](PYTHON.md)
+        - `.rs`: Read [RS](RUST.md)
+        - `.ts`: Read [TS](TS.md)
+        - `.tsx`: Read [TSX](TSX.md)
         - The whole file is an item otherwise. 
 - `validated: false`
 
 ## Body
 
 Choose one template based on the reframing: 
-- It is a yes/no question: [Predicate](PREDICATE.md)
-- It is a design decision: [Design](DESIGN.md)
+- It is a yes/no question: Read [Predicate](PREDICATE.md)
+- It is a design decision: Read [Design](DESIGN.md)
 
 You must follow one of these templates. 
 

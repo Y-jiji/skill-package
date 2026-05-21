@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -160,6 +161,51 @@ class DocblockGuard:
             return 0
 
 
+class NoteTemplateGuard:
+    PREDICATE_HEADERS = ("Statement", "Reason")
+    DESIGN_HEADERS = ("Choice", "Alternatives", "Trade-off", "Pin")
+
+    @classmethod
+    def check(cls, file_path, after):
+        body = cls._body(after)
+        if body is None:
+            return ("deny", f"note template guard denied {file_path}: missing or malformed frontmatter")
+        if cls._headers_in_order(body, cls.PREDICATE_HEADERS):
+            return None
+        if cls._headers_in_order(body, cls.DESIGN_HEADERS):
+            return None
+        return ("deny", cls._message(file_path))
+
+    @staticmethod
+    def _body(text):
+        if not text.startswith("---\n"):
+            return None
+        end = text.find("\n---", 4)
+        if end < 0:
+            return None
+        return text[end + 4:]
+
+    @staticmethod
+    def _headers_in_order(body, required):
+        pos = 0
+        for h in required:
+            pat = re.compile(r"(?m)^#\s+" + re.escape(h) + r"\b")
+            m = pat.search(body, pos)
+            if m is None:
+                return False
+            pos = m.end()
+        return True
+
+    @staticmethod
+    def _message(file_path):
+        return (
+            f"note template guard denied {file_path}: body must follow either "
+            f"`# Statement` then `# Reason` (skills/assume/PREDICATE.md) "
+            f"OR `# Choice` then `# Alternatives` then `# Trade-off` then `# Pin` "
+            f"(skills/assume/DESIGN.md)"
+        )
+
+
 def _stash_path(root):
     """
     Path to the cross-hook stash that carries the body-changed item set \
@@ -203,19 +249,17 @@ def _load_changes(root, expected_rel):
 def handle_pre_tool_use(data):
     """
     PreToolUse entry point. Returns (decision, reason) for deny, or None \
-    for allow. On allow, stashes the body-changed item set for the \
-    PostToolUse half.
+    for allow. \
+    For `note/*.md` paths, runs `NoteTemplateGuard.check` and denies any \
+    body that matches neither the PREDICATE nor DESIGN template. \
+    For supported-language code files, runs `DocblockGuard.check` and \
+    (on allow) stashes the body-changed item set for the PostToolUse half.
     """
     tool_name = data.get("tool_name") or ""
     if tool_name not in {"Edit", "Write"}:
         return None
     tool_input = data.get("tool_input") or {}
     file_path = tool_input.get("file_path") or ""
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from items import Lang
-    spec = Lang.for_path(file_path)
-    if spec is None:
-        return None
     p = Path(file_path)
     try:
         before = p.read_text(encoding="utf-8") if p.exists() else ""
@@ -224,13 +268,20 @@ def handle_pre_tool_use(data):
     after = EditApply.after(tool_name, tool_input, before)
     if after is None:
         return None
+    root = Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()).resolve()
+    try:
+        rel = Path(file_path).resolve().relative_to(root).as_posix()
+    except (OSError, ValueError):
+        return None
+    if rel.startswith("note/") and rel.endswith(".md"):
+        return NoteTemplateGuard.check(file_path, after)
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from items import Lang
+    spec = Lang.for_path(file_path)
+    if spec is None:
+        return None
     verdict, changed = DocblockGuard.check(file_path, before, after, spec)
     if verdict is None:
-        root = Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()).resolve()
-        try:
-            rel = Path(file_path).resolve().relative_to(root).as_posix()
-        except ValueError:
-            return None
         _save_changes(root, rel, changed)
     return verdict
 
