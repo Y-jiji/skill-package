@@ -73,3 +73,6 @@ What should not happen in `/propose`:
 - Reference code files in `vars`. 
 - [Transition] breach into `# Snapshot` section. 
 - Put comment changes in [Transition]
+- Hide explored information from [Other]
+- Present [Scope Edit] to user. 
+- Think all the files in `scope` must be edited -- actually, all dependencies must be listed in it. 
