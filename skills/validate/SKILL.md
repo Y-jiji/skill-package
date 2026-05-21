@@ -9,7 +9,7 @@ Prerequisite: before invoking `/validate`, the agent must have already read the 
 
 Steps when the target is `note/*.md` or `plan/*.md`:
 
-1. Present the target's content and the supporting evidence from prior context — cite the files in its `vars` and explain why each one supports the claim or plan.
+1. Cite the files in its `vars` and explain why each one supports the claim or plan. (The user sees the rendered file via `mdview` when `/validate-mark` fires — do not re-present the content as text.)
 2. If the evidence is sound, invoke `Skill(skill="validate-mark", args=<PATH>)`. The user will be prompted (via the `ask` permission rule) to accept or reject. On accept, the post-skill-use hook sets `validated: true` on the target — but only if every dependent code file (notes' `vars`, plans' `scope`) has all items in validated-form docblocks. Otherwise the flip is refused and a system message names the offending item.
 
 Steps when the target is a code file:

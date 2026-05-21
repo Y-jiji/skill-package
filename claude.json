@@ -74,7 +74,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/hooks/user_prompt_trigger.py\""
+            "command": "python3 \"$HOME/.claude/hooks/user_prompt_trigger.py\""
           }
         ]
       }
