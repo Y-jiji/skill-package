@@ -35,6 +35,75 @@ The PreToolUse guard rejects until both the body change and the marker downgrade
 
 `/validate-mark path/to/file.cpp` (or `::name`) rewrites every unvalidated `/* … */` docblock attached to a target item into a `/** … */` validated docblock by adding one star to the opener. See `skills/validate-mark/CPP.md`.
 
+## Item format
+
+### Functions / methods
+
+```cpp
+/* <one line brief> \
+ * `T`: <generic type desc, only info not inferable from constraints> \
+ * `arg`: <arg desc, only info not inferable from type> \
+ * `@return`: <return value semantics> \
+ * <how it works, time complexity, invariants, safety notes>
+ */
+[public/protected/private/static/constexpr/inline/noexcept] ReturnType method(
+    /* object state via this */,
+    /* read-only config */,
+    /* external resources (scratch buffers/streams) */,
+    /* output references/pointers */
+) {
+    // at most 30 lines, at most 80 chars/line
+    // if exceeding, revert and report to user
+}
+```
+
+For CUDA entry points and device code, keep qualifiers explicit:
+
+```cpp
+__global__ void kernel_name(/* args */);
+__device__ ReturnType device_fn(/* args */);
+__host__ __device__ ReturnType dual_fn(/* args */);
+```
+
+Prefer direct-mutable design. Example: for push into fixed-length buffers, prefer explicit status returns (`bool`, `std::optional`, `std::expected`, or error enums) over relying on callers to pre-check capacity.
+
+### `struct` / `class`
+
+```cpp
+/* <one line brief> \
+ * `field`: <desc, only info not inferable from type> \
+ * <invariants, layout/size/alignment notes>
+ */
+struct Name {
+    // at most 12 fields, no internal comments
+    // POD-like: public fields, no virtual methods
+};
+
+/* <one line brief> \
+ * `field`: <desc, only info not inferable from type> \
+ * <invariants, lifecycle/threading notes>
+ */
+class Name {
+public:
+    // public API, declaration only
+    // no public fields
+private:
+    // at most 12 fields, no internal comments
+    // private methods, declaration only
+};
+```
+
+- At most 7 public methods per class (excluding overrides).
+- Implementation in `.cpp` file, not in-class.
+
+### `enum`
+
+```cpp
+enum class Name {
+    Variant, // always enum class, not plain enum
+};
+```
+
 ## Write a docblock
 
 Prose convention for what to write inside an unvalidated `/* … */` docblock.

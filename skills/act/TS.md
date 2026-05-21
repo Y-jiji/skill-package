@@ -33,6 +33,56 @@ Rewrite: drop one star — `/**` → `/*`. The trailing `*/` is unchanged.
 
 `/validate-mark path/to/file.ts` (or `::name`) rewrites unvalidated `/* … */` into `/** … */`.
 
+## Item format
+
+### Functions / methods
+
+```typescript
+/* <one line brief> \
+ * `arg`: <arg desc, only info not inferable from type> \
+ * `@return`: <return desc, only info not inferable from return type> \
+ * <how it works, time complexity, allocation notes>
+ */
+function method(
+    /* data */,
+    /* read-only config */,
+    /* external resources (streams, handles) */,
+    /* output objects (to fill, if any) */
+): ReturnType {
+    // at most 30 lines, at most 80 chars/line
+    // if exceeding, revert and report to user
+}
+```
+
+Prefer direct-mutable design. Example: for `push` into a bounded collection, prefer throwing; the caller will not check length before `push`.
+
+### `class`
+
+```typescript
+/* <one line brief> \
+ * `field`: <desc, only info not inferable from type> \
+ * <invariants, lifecycle notes>
+ */
+class Name {
+    // no public fields — use getters or readonly
+    // at most 12 private fields
+    // at most 7 public methods (excluding overrides)
+}
+```
+
+### `interface`
+
+```typescript
+/* <one line brief> \
+ * <contract: what implementors must guarantee> \
+ * <when to implement vs. when to use as type bound>
+ */
+interface Name {
+    // single responsibility
+    // short method names, at most 6 args per method
+}
+```
+
 ## Write a docblock
 
 ### Functions / methods

@@ -29,6 +29,39 @@ The PreToolUse guard rejects the Edit until the body change and the docstring re
 
 `/validate-mark path/to/file.py` (or `::name`) structurally rewrites each eligible `#` run into a docstring per `skills/validate-mark/PYTHON.md` Case A / B / C.
 
+## Item format
+
+### Functions / methods
+
+```python
+# <one line brief> \
+# `arg`: <arg desc, only info not inferable from type hint> \
+# `@return`: <return desc, only info not inferable from return type> \
+# <how it works, time complexity, allocation notes>
+def method(
+    self,
+    # data goes into self
+    # read-only config
+    # external resources (file handles, connections, if any)
+    # output containers (lists/dicts to fill, if any)
+) -> ...:
+    # at most 30 lines, at most 80 chars/line
+    # if exceeding, revert and report to user
+```
+
+Prefer direct-mutable design. Example: for `append` into a bounded buffer, prefer raising `OverflowError`; the caller will not check length before `append`.
+
+### `class`
+
+```python
+# <one line brief> \
+# `attr`: <desc, only info not inferable from annotation> \
+# <invariants, lifecycle/threading notes>
+class Name:
+    # at most 12 attributes set in __init__
+    # at most 7 public methods (excluding dunder methods)
+```
+
 ## Write a docblock
 
 Prose convention for what to write inside the `#` comment block above a `def`/`class`. The hook only enforces marker form (Rule A); this section describes content.

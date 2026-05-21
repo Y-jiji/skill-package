@@ -34,6 +34,42 @@ Rewrite: drop one star — `/**` → `/*`. The trailing `*/` is unchanged. The b
 
 `/validate-mark path/to/file.js` (or `::name`) rewrites every unvalidated `/* … */` docblock into `/** … */` by adding one star to the opener.
 
+## Item format
+
+### Functions / methods
+
+```javascript
+/* <one line brief> \
+ * `arg`: <arg desc> \
+ * `@return`: <return desc> \
+ * <how it works, time complexity, allocation notes>
+ */
+function method(
+    /* data */,
+    /* read-only config */,
+    /* callbacks / external resources */,
+    /* output objects (to fill, if any) */
+) {
+    // at most 30 lines, at most 80 chars/line
+    // if exceeding, revert and report to user
+}
+```
+
+Prefer direct-mutable design. Example: for `push` into a bounded array wrapper, prefer throwing; the caller will not check length before `push`.
+
+### `class`
+
+```javascript
+/* <one line brief> \
+ * `field`: <desc> \
+ * <invariants, lifecycle notes>
+ */
+class Name {
+    // at most 12 fields set in constructor
+    // at most 7 methods (excluding getters/setters)
+}
+```
+
 ## Write a docblock
 
 Prose convention for the unvalidated `/* … */` block.

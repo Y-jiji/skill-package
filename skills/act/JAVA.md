@@ -33,6 +33,57 @@ Rewrite: drop one star — `/**` → `/*`. The trailing `*/` is unchanged.
 
 `/validate-mark path/to/file.java` (or `::name`) rewrites unvalidated `/* … */` docblocks into `/** … */`.
 
+## Item format
+
+### Methods / constructors
+
+```java
+/* <one line brief> \
+ * `arg`: <arg desc, only info not inferable from type> \
+ * `@return`: <return desc, only info not inferable from return type> \
+ * `Throws E`: <when thrown> \
+ * <how it works, time complexity, allocation notes>
+ */
+[public/protected/private/static] ReturnType method(
+    /* data */,
+    /* read-only config */,
+    /* external resources (streams, connections) */,
+    /* output containers (lists/maps to fill, if any) */
+) {
+    // at most 30 lines, at most 80 chars/line
+    // if exceeding, revert and report to user
+}
+```
+
+Prefer direct-mutable design. Example: for `add` into a bounded collection, prefer throwing `IllegalStateException`; the caller will not check capacity before `add`.
+
+### `class`
+
+```java
+/* <one line brief> \
+ * `field`: <desc, only info not inferable from type> \
+ * <invariants, lifecycle/threading notes>
+ */
+[public/final/abstract] class Name {
+    // no public fields — use getters
+    // at most 12 private fields
+    // at most 7 public methods (excluding overrides and constructors)
+}
+```
+
+### `interface`
+
+```java
+/* <one line brief> \
+ * <contract: what implementors must guarantee> \
+ * <when to implement vs. when to use as parameter type>
+ */
+[public] interface Name {
+    // single responsibility
+    // short method names, at most 6 args per method
+}
+```
+
 ## Write a docblock
 
 ### Methods / constructors

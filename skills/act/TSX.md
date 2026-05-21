@@ -5,7 +5,7 @@ Items: `function_declaration`, `method_definition`, `class_declaration`, `interf
 
 Cstyle predicate, attachment, downgrade rule, and auto-upgrade are identical to `.ts` — see [TS](TS.md) for the contract.
 
-Write-a-docblock conventions are the same as TS: function/method, class, and interface templates carry over verbatim. JSX adds no addressable items, so no extra templates are needed.
+Item format and write-a-docblock conventions are identical to TS — see [TS](TS.md). JSX adds no addressable items, so no extra templates are needed.
 
 Example (TSX-specific shape using the JSDoc/TSDoc block):
 

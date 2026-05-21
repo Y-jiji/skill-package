@@ -31,6 +31,87 @@ The PreToolUse guard rejects until the body change and the marker downgrade are 
 
 `/validate-mark path/to/file.rs` (or `::name`) rewrites every unvalidated `//` line in an attached docblock run into `///`. See `skills/validate-mark/RUST.md`.
 
+## Item format
+
+### Functions / methods
+
+```rust
+// <one line brief> \
+// `<T>`: <generic type desc, only info not inferable from trait bounds> \
+// `arg`: <arg desc, only info not inferable from type> \
+// `@return`: <return desc, only info not inferable from return type> \
+// <how it works, time complexity, invariants, safety notes>
+[pub/pub(super)/pub(crate)/unsafe/nothing] fn method(
+    self,
+    /* data goes into self */,
+    /* read-only config */,
+    /* external resources (like scratch buffer, if any) */,
+    /* output &mut args (if any) */,
+) -> ... {
+    // at most 30 lines, at most 80 chars/line
+    // if exceeding, revert and report to user
+}
+```
+
+Prefer direct-mutable design. Example: for `push` into fixed-length buffer, prefer returning `Result<(), Overflow>`; the caller will not check capacity before `push`.
+
+### `struct`
+
+```rust
+// <one line brief> \
+// `field`: <desc, only info not inferable from type> \
+// <invariants>
+[pub/pub(super)/pub(crate)/nothing] struct Name<...> {
+    // at most 12 fields, no internal comments
+}
+```
+
+- At most 7 `impl Name { ... }` methods (public + private combined).
+- Trait methods `impl Trait for Name { ... }` do not count.
+
+### `enum`
+
+```rust
+// <one line brief> \
+// `Variant`: <when this variant applies vs. siblings> \
+// <invariants across variants>
+[pub/pub(super)/pub(crate)/nothing] enum Name {
+    // One line: what this variant is
+    // `field_or_tuple_pos`: one line desc
+    Variant { ... },
+}
+```
+
+### `trait`
+
+```rust
+// <one line brief> \
+// <contract: what implementors must guarantee>
+[pub/pub(super)/pub(crate)/unsafe/nothing] trait Name {
+    type T; // assoc type: short name, at most 5 letters
+    fn abbrevname(/* at most 6 args, short names */) -> ...;
+}
+```
+
+### Tests
+
+Split into `perf` and `correct` modules. Do not use `mod tests`.
+
+```rust
+#[cfg(test)]
+macro_rules! helper { ... } // test helper macros outside test modules
+
+#[cfg(test)]
+mod perf {
+    // performance-related tests (operation counts, benchmarks)
+}
+
+#[cfg(test)]
+mod correct {
+    // correctness tests (fuzz/property-based by default, example-based only for hard-to-reach cases)
+}
+```
+
 ## Write a docblock
 
 Prose convention for what to write inside an unvalidated `//` line-comment run.
