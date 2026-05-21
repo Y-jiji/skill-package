@@ -75,4 +75,5 @@ What should not happen in `/propose`:
 - Put comment changes in [Transition]
 - Hide explored information from [Other]
 - Present [Scope Edit] to user. 
+- Present [Assumption] to user. 
 - Think all the files in `scope` must be edited -- actually, all dependencies must be listed in it. 
