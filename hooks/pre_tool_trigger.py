@@ -346,6 +346,8 @@ _BASE = [
     Matcher(Read(".*"), "Allow"),
     Matcher(lambda tn, ti: tn == "Read" and (ti.get("file_path") or "").startswith(
         os.path.expanduser("~/.claude/skills/")), "Allow", "read from ~/.claude/skills/"),
+    Matcher(lambda tn, ti: tn == "Read" and (ti.get("file_path") or "").startswith(
+        os.path.expanduser("~/.claude/")), "Deny", "read from ~/.claude/ (outside ~/.claude/skills/) not allowed"),
     Matcher(lambda tn, ti: tn == "Read", "Ask", "read outside project directory"),
     ValidateMarkAsk(_ROOT),
     Matcher(Skill("act-mark", ".*"), "Ask",
