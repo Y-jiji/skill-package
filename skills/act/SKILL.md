@@ -37,7 +37,7 @@ Invoke skill `/act-mark <NAME>` directly to delete `plan/<NAME>.md`.
 
 ## Tool Availability
 
-+ Bash (safe list — simple commands only, max 6 args)
++ Bash (safe list — simple commands only, max 6 args; commands in `TEST.shl` at project root are also allowed)
 + `Read`
 + `Write`/`Edit` on plan's `scope` files only
 + `Write`/`Edit` on `note/*` denied
