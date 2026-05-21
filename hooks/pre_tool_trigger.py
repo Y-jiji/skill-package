@@ -29,6 +29,7 @@ import json
 import os
 import re
 import shlex
+import subprocess
 import sys
 from pathlib import Path
 
@@ -206,6 +207,33 @@ class Agent:
     def __call__(self, tool_name, tool_input):
         return tool_name == "Agent" and self._t(tool_input.get("subagent_type") or "")
 
+class ValidateMarkAsk:
+    """
+    PreToolUse side-effect for validate-mark on .md files. \
+    Launches mdview in background so the user sees rendered content \
+    while the "Ask" prompt is showing. Returns ("Ask", reason) for \
+    validate-mark calls, None otherwise.
+    """
+    def __init__(self, root):
+        self._root = root
+
+    def __call__(self, tool_name, tool_input):
+        if tool_name != "Skill" or (tool_input.get("skill") or "") != "validate-mark":
+            return None
+        args = (tool_input.get("args") or "").strip()
+        if args:
+            for mark in shlex.split(args):
+                path_part = mark.split("::")[0]
+                if path_part.endswith(".md"):
+                    target = (self._root / path_part).resolve()
+                    if target.exists():
+                        subprocess.Popen(["mdview", str(target)],
+                                         stdout=subprocess.DEVNULL,
+                                         stderr=subprocess.DEVNULL)
+                        break
+        return ("Ask", "confirm /validate-mark side effect")
+
+
 class ActPrecondition:
     """
     `/act` precondition checker. Returns a reason string if the named plan \
@@ -294,8 +322,7 @@ _BASE = [
     Matcher(lambda tn, ti: tn == "Read" and (ti.get("file_path") or "").startswith(
         os.path.expanduser("~/.claude/skills/")), "Allow", "read from ~/.claude/skills/"),
     Matcher(lambda tn, ti: tn == "Read", "Ask", "read outside project directory"),
-    Matcher(Skill("validate-mark", ".*"), "Ask",
-            "confirm /validate-mark side effect"),
+    ValidateMarkAsk(_ROOT),
     Matcher(Skill("act-mark", ".*"), "Ask",
             "confirm /act-mark side effect"),
     Matcher(Skill(".*"), "Allow"),
