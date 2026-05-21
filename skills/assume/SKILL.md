@@ -1,6 +1,6 @@
 ---
 name: assume
-description: Trigger this when you have a question/confusion. Enter `assume` mode to write a note to `note/<NAME>.md`. 
+description: Trigger this when the agent have a question/confusion. Trigger this when the user asked a question. Enter `assume` mode to write a note to `note/<NAME>.md`. 
 ---
 
 Contribute one note `note/<NAME>.md`
