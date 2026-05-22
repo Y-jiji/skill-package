@@ -20,7 +20,7 @@ def pre_tool_use(tool_name: str, tool_input: dict, root: Path):
                 continue
             verdict, reason = result
             if verdict == "Pass":
-                return None
+                return ("pass", reason)
             if verdict == "Allow":
                 return ("allow", reason + _suffix)
             return (verdict.lower(), reason + _suffix)
@@ -30,13 +30,15 @@ def pre_tool_use(tool_name: str, tool_input: dict, root: Path):
         try:
             rel = Path(file_path).resolve().relative_to(root).as_posix()
         except (OSError, ValueError):
-            return None
+            return ("pass", "path outside project")
         if rel.startswith("note/") and rel.endswith(".md"):
-            return None
+            return ("pass", "note file")
         return ("deny", "Write/Edit outside note/*.md denied in note mode" + _suffix)
     if tool_name in {"WebFetch", "WebSearch"}:
-        return None  # Pass
-    return None
+        return ("pass", "web tools allowed in note mode")
+    if tool_name == "Read":
+        return ("pass", "pass to next hook")
+    return ("deny", f"{tool_name} not allowed in note mode" + _suffix)
 
 
 def post(args: str, root: Path) -> None:

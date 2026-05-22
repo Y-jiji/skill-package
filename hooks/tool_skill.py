@@ -56,22 +56,14 @@ def _ensure_loaded() -> None:
             _reg[skill] = mod
 
 
-def _dispatch_pre_tool_use(mode: str, tool_name: str, tool_input: dict, root: Path):
-    _ensure_loaded()
-    mod = _reg.get(mode)
-    if mod and hasattr(mod, "pre_tool_use"):
-        return mod.pre_tool_use(tool_name, tool_input, root)
-    return None
-
-
 def _default_pre_tool_use(tool_name: str, tool_input: dict, root: Path):
     import os
     from state import load_state
     mode = (load_state().get("mode") or "default")
     _suffix = f" [current mode: '{mode}' — use /propose, /note, /validate, or /act to switch]"
     if tool_name == "Bash":
-        from fences import _BASH_SAFE, _load_bash_test
-        rules = list(_BASH_SAFE) + list(_load_bash_test(root))
+        from fences import _BASH_SAFE
+        rules = list(_BASH_SAFE)
         cmd = tool_input.get("command") or ""
         for rule in rules:
             result = rule(tool_name, tool_input)
@@ -79,7 +71,7 @@ def _default_pre_tool_use(tool_name: str, tool_input: dict, root: Path):
                 continue
             verdict, reason = result
             if verdict == "Pass":
-                return None
+                return ("pass", reason)
             if verdict == "Allow":
                 return ("allow", reason + _suffix)
             return (verdict.lower(), reason + _suffix)
@@ -91,16 +83,16 @@ def _default_pre_tool_use(tool_name: str, tool_input: dict, root: Path):
         abs_path = str(Path(file_path).resolve()) if file_path else ""
         try:
             Path(file_path).resolve().relative_to(root)
-            return None  # project file — Pass
+            return ("pass", "project file")
         except ValueError:
             pass
         if abs_path.startswith(skills_dir):
-            return None  # ~/.claude/skills/ — Pass
+            return ("pass", "skills dir")
         if abs_path.startswith(claude_dir):
             return ("deny", "read from ~/.claude/ (outside ~/.claude/skills/) not allowed" + _suffix)
         return ("ask", "read outside project directory" + _suffix)
     if tool_name in {"Edit", "Write"}:
-        return None  # docblock guard in tool_write_edit.py handles it
+        return ("deny", "Write/Edit requires an active skill mode — use /propose, /note, /validate, or /act" + _suffix)
     return ("deny", f"{tool_name} not allowed" + _suffix)
 
 
@@ -144,18 +136,22 @@ def _handle_pre(data: dict) -> None:
 
     root = project_root()
     mode = (load_state().get("mode") or "default").strip()
-    result = _dispatch_pre_tool_use(mode, tool_name, tool_input, root)
-    if result is None:
+    _ensure_loaded()
+    mod = _reg.get(mode)
+    if mod and hasattr(mod, "pre_tool_use"):
+        result = mod.pre_tool_use(tool_name, tool_input, root)
+    else:
         result = _default_pre_tool_use(tool_name, tool_input, root)
     if result is not None:
         decision, reason = result
-        sys.stdout.write(json.dumps({
-            "hookSpecificOutput": {
-                "hookEventName": "PreToolUse",
-                "permissionDecision": decision,
-                "permissionDecisionReason": reason,
-            }
-        }))
+        if decision != "pass":
+            sys.stdout.write(json.dumps({
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": decision,
+                    "permissionDecisionReason": reason,
+                }
+            }))
 
 
 def _handle_post(data: dict) -> None:

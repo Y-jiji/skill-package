@@ -20,7 +20,7 @@ def pre_tool_use(tool_name: str, tool_input: dict, root: Path):
                 continue
             verdict, reason = result
             if verdict == "Pass":
-                return None
+                return ("pass", reason)
             if verdict == "Allow":
                 return ("allow", reason + _suffix)
             return (verdict.lower(), reason + _suffix)
@@ -30,13 +30,15 @@ def pre_tool_use(tool_name: str, tool_input: dict, root: Path):
         try:
             rel = Path(file_path).resolve().relative_to(root).as_posix()
         except (OSError, ValueError):
-            return None
+            return ("pass", "path outside project")
         if rel.startswith("plan/") and rel.endswith(".md"):
-            return None
+            return ("pass", "plan file")
         return ("deny", "Write/Edit outside plan/*.md denied in propose mode" + _suffix)
     if tool_name in {"WebFetch", "WebSearch"}:
         return ("deny", "WebFetch/WebSearch info should be consolidated to note/ via note skill" + _suffix)
-    return None
+    if tool_name == "Read":
+        return ("pass", "pass to next hook")
+    return ("deny", f"{tool_name} not allowed in propose mode" + _suffix)
 
 
 def post(args: str, root: Path) -> None:

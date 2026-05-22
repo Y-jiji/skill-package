@@ -21,14 +21,16 @@ def pre_tool_use(tool_name: str, tool_input: dict, root: Path):
                 continue
             verdict, reason = result
             if verdict == "Pass":
-                return None
+                return ("pass", reason)
             if verdict == "Allow":
                 return ("allow", reason + _suffix)
             return (verdict.lower(), reason + _suffix)
         return ("deny", f"bash command not on safe list: {cmd!r}" + _suffix)
     if tool_name in {"Edit", "Write"}:
         return ("deny", "Write/Edit not allowed in validate mode — only /validate-mark mutates" + _suffix)
-    return None
+    if tool_name == "Read":
+        return ("pass", "pass to next hook")
+    return ("deny", f"{tool_name} not allowed in validate mode" + _suffix)
 
 
 def post(args: str, root: Path) -> None:

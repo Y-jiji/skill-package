@@ -22,7 +22,7 @@ def pre_tool_use(tool_name: str, tool_input: dict, root: Path):
                 continue
             verdict, reason = result
             if verdict == "Pass":
-                return None
+                return ("pass", reason)
             if verdict == "Allow":
                 return ("allow", reason + _suffix)
             return (verdict.lower(), reason + _suffix)
@@ -32,14 +32,16 @@ def pre_tool_use(tool_name: str, tool_input: dict, root: Path):
         try:
             rel = Path(file_path).resolve().relative_to(root).as_posix()
         except (OSError, ValueError):
-            return None
+            return ("pass", "path outside project")
         if rel.startswith("note/"):
             return ("deny", "Write/Edit on note/* denied in act mode" + _suffix)
         scope = load_state().get("scope") or []
         if rel in scope:
-            return None
+            return ("pass", "in plan scope")
         return ("deny", f"{rel!r} is not in plan scope" + _suffix)
-    return None
+    if tool_name == "Read":
+        return ("pass", "pass to next hook")
+    return ("deny", f"{tool_name} not allowed in act mode" + _suffix)
 
 
 def pre(args: str, root: Path):
