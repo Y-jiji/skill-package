@@ -1,6 +1,6 @@
 ---
-name: assume
-description: Trigger this when the agent have a question/confusion. Trigger this when the user asked a question. Enter `assume` mode to write a note to `note/<NAME>.md`. 
+name: note
+description: Trigger this when the agent have a question/confusion. Trigger this when the user asked a question. Enter `note` mode to write a note to `note/<NAME>.md`. 
 ---
 
 Contribute one note `note/<NAME>.md`
@@ -55,7 +55,7 @@ Invoke skill `/validate note/<NAME>.md` directly.
 
 ## Anti-Pattern
 
-What should not happen in `/assume`:
+What should not happen in `/note`:
 - Fields other than `vars` and `validated` in frontmatter. For example, `name` and `description`.
 - Never read PREDICATE.md or DESIGN.md, just write whatever the fuck the agent wants. 
 - 'Let me remove the code file deps from vars — they're described in the body anyway.' Description will no longer be true if the code changes. 

@@ -17,7 +17,7 @@ First, focus the issue:
 - Present [Issue], [Scope], [Vars], [Other] to the user. 
 
 Second, locate files and inspect code state to form code actions: 
-- Before working, if [Other] is not empty, consolidate it them into `note/` using `/assume` skill before proceeding. 
+- Before working, if [Other] is not empty, consolidate it them into `note/` using `/note` skill before proceeding. 
 - What files are subject to change? Answer as [Scope Edit]
 - How will you edit [Scope Edit]? Answer as [Transition]
 - Merge [Scope Edit] into [Scope]
@@ -33,6 +33,7 @@ Put the following in yaml frontmatter
     - `scope` is edit file set + dependent file set. 
     - Verdict: If any change in a file affects current plan, list it in `scope`
 - `validated: false`
+- `executed: false`
 
 ## Body
 
@@ -65,7 +66,7 @@ Step 3: Transition
 + Bash (safe list — simple commands only, max 6 args)
 + `Read`
 + `Write`/`Edit` on `plan/*` only
-+ `WebFetch`/`WebSearch` denied — consolidate to `note/` via `/assume`
++ `WebFetch`/`WebSearch` denied — consolidate to `note/` via `/note`
 
 ## Anti-Pattern
 

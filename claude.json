@@ -29,33 +29,31 @@
     ]
   },
   "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$HOME/.claude/hooks/pre_tool_trigger.py\""
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$HOME/.claude/hooks/pre_tool_trigger.py\""
-          }
-        ]
-      }
-    ],
     "PreToolUse": [
       {
         "matcher": ".*",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$HOME/.claude/hooks/pre_tool_trigger.py\""
+            "command": "uv run \"$HOME/.claude/hooks/tool_skill.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.claude/hooks/tool_bash.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.claude/hooks/tool_read.py\""
           }
         ]
       },
@@ -64,7 +62,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run \"$HOME/.claude/hooks/post_write_trigger.py\""
+            "command": "uv run \"$HOME/.claude/hooks/tool_write_edit.py\""
           }
         ]
       }
@@ -85,7 +83,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run \"$HOME/.claude/hooks/post_write_trigger.py\""
+            "command": "uv run \"$HOME/.claude/hooks/tool_write_edit.py\""
           }
         ]
       },
@@ -94,7 +92,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run \"$HOME/.claude/hooks/post_skill_trigger.py\""
+            "command": "uv run \"$HOME/.claude/hooks/tool_skill.py\""
           }
         ]
       }

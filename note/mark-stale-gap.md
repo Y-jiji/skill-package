@@ -3,7 +3,7 @@ name: mark-stale-gap
 description: Even after the cascade moved into hooks/post_write_trigger.py, the invalidation hook still only mutates DEPENDENTS — it never reads or rewrites the just-edited file's own frontmatter, so a fresh note/plan written with `validated: true` slips through unchecked.
 vars:
   - hooks/post_write_trigger.py::handle_post_tool_use
-validated: true
+validated: false
 ---
 
 # Claim

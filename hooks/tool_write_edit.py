@@ -11,26 +11,10 @@
 #   "tree-sitter-java",
 # ]
 # ///
-"""Unified Edit|Write hook (PreToolUse + PostToolUse).
+"""Bracket hook for Write/Edit tool — mode-independent guards (Pre) and invalidation (Post).
 
-PreToolUse: docblock guard. Walks `items_before` and `items_after`
-once, collecting every violation in two lists — rule A (validated
-docblock in `after` that wasn't in `before` verbatim) and rule B
-(item body changed while a validated docblock remains attached) —
-then returns a single multi-line deny message identifying each
-offending item by name and source line. On pass, stashes the
-body-changed item set under `.claude/last_edit_changes.json` so the
-PostToolUse half can do item-granular invalidation.
-
-PostToolUse: invalidation cascade. Reads the stash; for the matching
-file calls `Items(root).invalidate(rel)` (file-level vars) plus
-`Items(root).invalidate(f"{rel}::{name}")` for each body-changed
-item (item-level vars), then emits the "Marked stale: ..." line as
-both `systemMessage` (user) and `hookSpecificOutput.additionalContext`
-(agent) so the cascade is visible to both sides.
-
-Per-language parsing config and helpers come from `items.Lang`; the
-graph operations come from `items.Items`.
+PreToolUse: docblock guard (DocblockGuard) and note template guard (NoteTemplateGuard).
+PostToolUse: item invalidation cascade; resets plan executed flag on plan/*.md writes.
 """
 from __future__ import annotations
 
@@ -41,14 +25,12 @@ import sys
 from pathlib import Path
 
 
+# Computes the post-edit content from a tool invocation. \
+# `tool_name`: Write or Edit \
+# `tool_input`: the hook's tool_input dict \
+# `before`: current file content (or "" for Write of a new file) \
+# Returns the projected after content, or None on malformed input.
 class EditApply:
-    """
-    Computes the post-edit content from a tool invocation. \
-    `tool_name`: Write or Edit \
-    `tool_input`: the hook's `tool_input` dict \
-    `before`: current file content (or "" for Write of a new file) \
-    Returns the projected `after` content, or None on malformed input.
-    """
     @classmethod
     def after(cls, tool_name, tool_input, before):
         if tool_name == "Write":
@@ -72,17 +54,13 @@ class EditApply:
         return text[:idx] + new + text[idx + len(old):]
 
 
+# Rule A and Rule B enforcement on docblock invariants. \
+# `file_path`: target file path \
+# `before`, `after`: pre- and post-edit content strings \
+# `spec`: codebase.Lang instance for the file's language \
+# Returns `(verdict, changed)` where verdict is `(decision, reason)` on deny or \
+# None on pass, and changed is the list of item names whose body bytes differ.
 class DocblockGuard:
-    """
-    Rule A and Rule B enforcement on the docblock invariants. \
-    `file_path`: target file path \
-    `before`, `after`: pre- and post-edit content strings \
-    `spec`: `items.Lang` instance for the file's language \
-    Returns `(verdict, changed)` where `verdict` is `(decision, reason)` \
-    on deny or None on pass, and `changed` is the list of item names \
-    whose body bytes differ between before and after (or [] if the \
-    check could not enumerate items).
-    """
     @classmethod
     def check(cls, file_path, before, after, spec):
         parser = spec.parser()
@@ -104,10 +82,10 @@ class DocblockGuard:
             if doc and spec.is_validated(doc[2]):
                 before_validated.add(doc[2])
 
-        bodies_before: dict[str, list[bytes]] = {}
+        bodies_before: dict = {}
         for name, _q, body, _d in items_before:
             bodies_before.setdefault(name, []).append(body)
-        bodies_after: dict[str, list[bytes]] = {}
+        bodies_after: dict = {}
         for name, _q, body, _d in items_after:
             bodies_after.setdefault(name, []).append(body)
 
@@ -200,25 +178,17 @@ class NoteTemplateGuard:
     def _message(file_path):
         return (
             f"note template guard denied {file_path}: body must follow either "
-            f"`# Statement` then `# Reason` (skills/assume/PREDICATE.md) "
+            f"`# Statement` then `# Reason` (skills/note/PREDICATE.md) "
             f"OR `# Choice` then `# Alternatives` then `# Trade-off` then `# Pin` "
-            f"(skills/assume/DESIGN.md)"
+            f"(skills/note/DESIGN.md)"
         )
 
 
 def _stash_path(root):
-    """
-    Path to the cross-hook stash that carries the body-changed item set \
-    from PreToolUse to PostToolUse.
-    """
     return root / ".claude" / "last_edit_changes.json"
 
 
 def _save_changes(root, rel, changed):
-    """
-    Write `{"file": <rel>, "changed": [...]}` to the stash so PostToolUse \
-    can invalidate dependents at item granularity.
-    """
     p = _stash_path(root)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(
@@ -228,11 +198,6 @@ def _save_changes(root, rel, changed):
 
 
 def _load_changes(root, expected_rel):
-    """
-    Read the stash and return the body-changed names — but only when the \
-    stashed `file` matches `expected_rel`. Anything else is treated as \
-    stale and ignored.
-    """
     p = _stash_path(root)
     if not p.exists():
         return []
@@ -246,21 +211,49 @@ def _load_changes(root, expected_rel):
     return [str(x) for x in out if isinstance(x, str)]
 
 
+def _fm_reset_executed(path: Path) -> None:
+    # Reset executed: false in plan frontmatter; add the field if absent.
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return
+    pat = re.compile(r"(?m)^executed: true$")
+    if pat.search(text):
+        path.write_text(pat.sub("executed: false", text), encoding="utf-8")
+    elif not re.search(r"(?m)^executed:", text):
+        end = text.find("\n---", 4)
+        if end >= 0:
+            path.write_text(text[:end] + "\nexecuted: false" + text[end:], encoding="utf-8")
+
+
 def handle_pre_tool_use(data):
-    """
-    PreToolUse entry point. Returns (decision, reason) for deny, or None \
-    for allow. \
-    For `note/*.md` paths, runs `NoteTemplateGuard.check` and denies any \
-    body that matches neither the PREDICATE nor DESIGN template. \
-    For supported-language code files, runs `DocblockGuard.check` and \
-    (on allow) stashes the body-changed item set for the PostToolUse half.
-    """
     tool_name = data.get("tool_name") or ""
     if tool_name not in {"Edit", "Write"}:
         return None
     tool_input = data.get("tool_input") or {}
     file_path = tool_input.get("file_path") or ""
     p = Path(file_path)
+    root = Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()).resolve()
+    try:
+        rel = Path(file_path).resolve().relative_to(root).as_posix()
+    except (OSError, ValueError):
+        return None
+    # Mode-based Write/Edit rule enforcement from skill mode modules.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from tool_skill import mode_rules
+    from state import load_state
+    mode = (load_state().get("mode") or "default")
+    _suffix = f" [current mode: '{mode}' — use /propose, /note, /validate, or /act to switch]"
+    for rule in mode_rules(mode):
+        result = rule(tool_name, tool_input)
+        if result is None:
+            continue
+        verdict, reason = result
+        if verdict == "Pass":
+            break
+        if verdict == "Allow":
+            return ("allow", reason + _suffix)
+        return (verdict.lower(), reason + _suffix)
     try:
         before = p.read_text(encoding="utf-8") if p.exists() else ""
     except OSError:
@@ -268,15 +261,9 @@ def handle_pre_tool_use(data):
     after = EditApply.after(tool_name, tool_input, before)
     if after is None:
         return None
-    root = Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()).resolve()
-    try:
-        rel = Path(file_path).resolve().relative_to(root).as_posix()
-    except (OSError, ValueError):
-        return None
     if rel.startswith("note/") and rel.endswith(".md"):
         return NoteTemplateGuard.check(file_path, after)
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from items import Lang
+    from codebase import Lang
     spec = Lang.for_path(file_path)
     if spec is None:
         return None
@@ -287,16 +274,6 @@ def handle_pre_tool_use(data):
 
 
 def handle_post_tool_use(data):
-    """
-    PostToolUse entry point. Reads the PreToolUse stash; for the matching \
-    file calls `Items.invalidate(rel)` (file-level vars) plus \
-    `Items.invalidate(f"{rel}::{name}")` for each body-changed item. \
-    When any dependent flips, emits the "Marked stale: ..." line as BOTH \
-    `systemMessage` (user-visible UI banner) AND \
-    `hookSpecificOutput.additionalContext` (agent-visible system-reminder \
-    on the next turn) — same dual-visibility pattern as \
-    `hooks/post_skill_trigger.py::PostMark._notify`.
-    """
     file_path = (data.get("tool_input") or {}).get("file_path")
     if not file_path:
         return
@@ -305,8 +282,10 @@ def handle_post_tool_use(data):
         rel = Path(file_path).resolve().relative_to(root).as_posix()
     except ValueError:
         return
+    if rel.startswith("plan/") and rel.endswith(".md"):
+        _fm_reset_executed(Path(file_path).resolve())
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from items import Items
+    from codebase import Items
     items = Items(root)
     flipped = set(items.invalidate(rel))
     for name in _load_changes(root, rel):

@@ -11,7 +11,7 @@
 #   "tree-sitter-java",
 # ]
 # ///
-"""Items — the project's item/dependency graph plus per-language parsing.
+"""Codebase — the project's item/dependency graph plus per-language parsing.
 
 Four classes:
 
@@ -27,7 +27,7 @@ Four classes:
 Usage from another hook:
 
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from items import Items, Lang
+    from codebase import Items, Lang
 
     db = Items(project_root)
     ok, reason = db.validate_check("plan/foo.md")
