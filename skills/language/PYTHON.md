@@ -129,3 +129,29 @@ Decorators and `_CSTYLE_WRAPPERS` (`attribute_specifier`, `annotation`, etc.) be
 Quoting: emits `"""` by default. If the joined body contains `"""`, falls back to `'''`. If both are present, uses `"""` and escapes each `"""` occurrence as `\"\"\"` inside the body.
 
 The downgrade direction (Rule B when an agent edits a body) is in the `## Downgrade` section above. The "Write a docblock" prose convention in `## Format` describes what to write inside the `#` block that this upgrade will convert.
+
+## Labels
+
+Extensions: `.py`
+
+Item kinds: `def` functions, `def` methods, `class` definitions.
+
+Scope wrappers: `class`. Items inside a `def` are NOT separately enumerated.
+
+Label form (`::` joins every enclosing class):
+
+- Top-level function: `path/to/file.py::func`
+- Top-level class: `path/to/file.py::Klass`
+- Method on class: `path/to/file.py::Klass::method`
+- Nested class: `path/to/file.py::Outer::Inner`
+- Method on nested class: `path/to/file.py::Outer::Inner::method`
+
+Generics: PEP 695 `class Box[T]` / `def foo[T]` — the `[T]` clause is `type_parameters`, NOT in the label.
+
+Examples:
+
+- `hooks/items.py::Note` — a top-level class.
+- `hooks/items.py::Lang::enumerate_items` — a method on `Lang`.
+- `hooks/items.py::Items::_of` — a method on `Items`.
+
+Whole-file (`hooks/items.py` alone) is **not** a valid label for `.py` — pick an item.

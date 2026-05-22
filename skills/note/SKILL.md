@@ -23,15 +23,8 @@ Put the following in yaml frontmatter
 
 - `vars`: a list of items that affects the answer to [Reframed Question]. 
     - Item can be from code files or note folder. 
-    - Format for cite code file items, by file extension:
-        - `.c`/`.h`/`.cpp`/`.cc`/`.cxx`/`.hpp`/`.hh`/`.hxx`: Read [CPP](CPP.md)
-        - `.java`: Read [JAVA](JAVA.md)
-        - `.js`/`.jsx`/`.mjs`/`.cjs`: Read [JS](JS.md)
-        - `.py`: Read [PY](PYTHON.md)
-        - `.rs`: Read [RS](RUST.md)
-        - `.ts`: Read [TS](TS.md)
-        - `.tsx`: Read [TSX](TSX.md)
-        - The whole file is an item otherwise. 
+    - For item label format by file extension, invoke `/language <ext> labels`.
+      For unsupported extensions the whole file is the item.
 - `validated: false`
 
 ## Body
