@@ -238,22 +238,7 @@ def handle_pre_tool_use(data):
         rel = Path(file_path).resolve().relative_to(root).as_posix()
     except (OSError, ValueError):
         return None
-    # Mode-based Write/Edit rule enforcement from skill mode modules.
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from tool_skill import mode_rules
-    from state import load_state
-    mode = (load_state().get("mode") or "default")
-    _suffix = f" [current mode: '{mode}' — use /propose, /note, /validate, or /act to switch]"
-    for rule in mode_rules(mode):
-        result = rule(tool_name, tool_input)
-        if result is None:
-            continue
-        verdict, reason = result
-        if verdict == "Pass":
-            break
-        if verdict == "Allow":
-            return ("allow", reason + _suffix)
-        return (verdict.lower(), reason + _suffix)
     try:
         before = p.read_text(encoding="utf-8") if p.exists() else ""
     except OSError:

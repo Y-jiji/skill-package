@@ -1,25 +1,45 @@
-"""Skill module: act — plan precondition check, scope-based mode entry, and mode rules."""
+"""Skill module: act — plan precondition check and mode entry."""
 from __future__ import annotations
 
 from pathlib import Path
 import sys
 
 SKILL = "act"
-HAS_MODE = True
 
 
-def _make_rules():
-    from fences import Matcher, Write, Edit
+# pre_tool_use for act mode: Bash (safe+COMMAND.jsonl), Write/Edit (scope only, note denied)
+def pre_tool_use(tool_name: str, tool_input: dict, root: Path):
+    from fences import _BASH_SAFE, _load_bash_test
     from state import load_state
-    return [
-        Matcher(Write(r"note/.*"), "Deny"),
-        Matcher(Edit(r"note/.*"), "Deny"),
-        Matcher(Write(lambda rel: rel in (load_state().get("scope") or [])), "Pass"),
-        Matcher(Edit(lambda rel: rel in (load_state().get("scope") or [])), "Pass"),
-    ]
-
-
-MODE_RULES = _make_rules()
+    mode = (load_state().get("mode") or "default")
+    _suffix = f" [current mode: '{mode}' — use /propose, /note, /validate, or /act to switch]"
+    if tool_name == "Bash":
+        rules = list(_BASH_SAFE) + list(_load_bash_test(root))
+        cmd = tool_input.get("command") or ""
+        for rule in rules:
+            result = rule(tool_name, tool_input)
+            if result is None:
+                continue
+            verdict, reason = result
+            if verdict == "Pass":
+                return None
+            if verdict == "Allow":
+                return ("allow", reason + _suffix)
+            return (verdict.lower(), reason + _suffix)
+        return ("deny", f"bash command not on safe list: {cmd!r}" + _suffix)
+    if tool_name in {"Edit", "Write"}:
+        file_path = tool_input.get("file_path") or ""
+        try:
+            rel = Path(file_path).resolve().relative_to(root).as_posix()
+        except (OSError, ValueError):
+            return None
+        if rel.startswith("note/"):
+            return ("deny", "Write/Edit on note/* denied in act mode" + _suffix)
+        scope = load_state().get("scope") or []
+        if rel in scope:
+            return None
+        return ("deny", f"{rel!r} is not in plan scope" + _suffix)
+    return None
 
 
 def pre(args: str, root: Path):

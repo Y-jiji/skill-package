@@ -56,13 +56,52 @@ def _ensure_loaded() -> None:
             _reg[skill] = mod
 
 
-# Return MODE_RULES for `mode` if that skill has HAS_MODE, else empty list.
-def mode_rules(mode: str) -> list:
+def _dispatch_pre_tool_use(mode: str, tool_name: str, tool_input: dict, root: Path):
     _ensure_loaded()
     mod = _reg.get(mode)
-    if mod and getattr(mod, "HAS_MODE", False):
-        return list(getattr(mod, "MODE_RULES", []))
-    return []
+    if mod and hasattr(mod, "pre_tool_use"):
+        return mod.pre_tool_use(tool_name, tool_input, root)
+    return None
+
+
+def _default_pre_tool_use(tool_name: str, tool_input: dict, root: Path):
+    import os
+    from state import load_state
+    mode = (load_state().get("mode") or "default")
+    _suffix = f" [current mode: '{mode}' — use /propose, /note, /validate, or /act to switch]"
+    if tool_name == "Bash":
+        from fences import _BASH_SAFE, _load_bash_test
+        rules = list(_BASH_SAFE) + list(_load_bash_test(root))
+        cmd = tool_input.get("command") or ""
+        for rule in rules:
+            result = rule(tool_name, tool_input)
+            if result is None:
+                continue
+            verdict, reason = result
+            if verdict == "Pass":
+                return None
+            if verdict == "Allow":
+                return ("allow", reason + _suffix)
+            return (verdict.lower(), reason + _suffix)
+        return ("deny", f"bash command not on safe list: {cmd!r}" + _suffix)
+    if tool_name == "Read":
+        file_path = tool_input.get("file_path") or ""
+        skills_dir = os.path.expanduser("~/.claude/skills/")
+        claude_dir = os.path.expanduser("~/.claude/")
+        abs_path = str(Path(file_path).resolve()) if file_path else ""
+        try:
+            Path(file_path).resolve().relative_to(root)
+            return None  # project file — Pass
+        except ValueError:
+            pass
+        if abs_path.startswith(skills_dir):
+            return None  # ~/.claude/skills/ — Pass
+        if abs_path.startswith(claude_dir):
+            return ("deny", "read from ~/.claude/ (outside ~/.claude/skills/) not allowed" + _suffix)
+        return ("ask", "read outside project directory" + _suffix)
+    if tool_name in {"Edit", "Write"}:
+        return None  # docblock guard in tool_write_edit.py handles it
+    return ("deny", f"{tool_name} not allowed" + _suffix)
 
 
 def _dispatch_pre(skill: str, args: str, root: Path):
@@ -81,13 +120,12 @@ def _dispatch_post(skill: str, args: str, root: Path) -> None:
 
 
 def _handle_pre(data: dict) -> None:
-    from state import project_root
+    from state import project_root, load_state
     tool_name = data.get("tool_name") or ""
     tool_input = data.get("tool_input") or {}
 
-    # Defer to specific bracket files.
-    if tool_name in {"Bash", "Read", "Edit", "Write"}:
-        return
+    if tool_name == "ToolSearch":
+        return  # allow
 
     if tool_name == "Skill":
         skill = (tool_input.get("skill") or "").strip()
@@ -104,17 +142,20 @@ def _handle_pre(data: dict) -> None:
             }))
         return
 
-    if tool_name == "ToolSearch":
-        return  # allow
-
-    # Catch-all deny for unrecognized tools (Agent, etc.).
-    sys.stdout.write(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "deny",
-            "permissionDecisionReason": f"{tool_name} not allowed",
-        }
-    }))
+    root = project_root()
+    mode = (load_state().get("mode") or "default").strip()
+    result = _dispatch_pre_tool_use(mode, tool_name, tool_input, root)
+    if result is None:
+        result = _default_pre_tool_use(tool_name, tool_input, root)
+    if result is not None:
+        decision, reason = result
+        sys.stdout.write(json.dumps({
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": decision,
+                "permissionDecisionReason": reason,
+            }
+        }))
 
 
 def _handle_post(data: dict) -> None:

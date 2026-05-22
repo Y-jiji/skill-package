@@ -40,24 +40,6 @@
         ]
       },
       {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$HOME/.claude/hooks/tool_bash.py\""
-          }
-        ]
-      },
-      {
-        "matcher": "Read",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$HOME/.claude/hooks/tool_read.py\""
-          }
-        ]
-      },
-      {
         "matcher": "Edit|Write",
         "hooks": [
           {
