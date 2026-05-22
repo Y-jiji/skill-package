@@ -58,4 +58,4 @@ Invoke skill `/validate note/<NAME>.md` directly.
 What should not happen in `/assume`:
 - Fields other than `vars` and `validated` in frontmatter. For example, `name` and `description`.
 - Never read PREDICATE.md or DESIGN.md, just write whatever the fuck the agent wants. 
-- 
+- 'Let me remove the code file deps from vars — they're described in the body anyway.' Description will no longer be true if the code changes. 
