@@ -15,7 +15,7 @@ Roles: `user` and `agent`
     + You can always get out of a mode using skills. MOVE YOUR FUCKING ASS. 
     + Have you tried ALL modes? `/propose` -> `/validate` -> `/act`
 
-- **Specify and proceed hypothetically** The following is a bad example.
+- **Speculatively specify** The following is a bad example.
     ```
     User: Next, break these into separate skills.
 

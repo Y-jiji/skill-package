@@ -1,4 +1,4 @@
-# Docblock format — C / C++
+# Language spec — C / C++
 
 Extensions: `.c .h .cpp .cc .cxx .hpp .hh .hxx`
 Items: `function_definition`, `class_specifier`, `struct_specifier`.
@@ -7,7 +7,9 @@ Items: `function_definition`, `class_specifier`, `struct_specifier`.
 - **Unvalidated form**: any block comment that does NOT begin with `/**` — typically `/* ... */`.
 - Attachment: the comment immediately preceding the item, skipping `[[attribute]]` specifiers.
 
-## When you edit an item's body, downgrade its docblock in the same Edit
+## Downgrade
+
+When you edit an item's body, downgrade its docblock in the same Edit.
 
 Before:
 
@@ -31,11 +33,7 @@ Rewrite: drop one star from the opening — `/**` becomes `/*`. The trailing `*/
 
 The PreToolUse guard rejects until both the body change and the marker downgrade land in the same transaction.
 
-## Auto-upgrade by `/validate-mark`
-
-`/validate-mark path/to/file.cpp` (or `::name`) rewrites every unvalidated `/* … */` docblock attached to a target item into a `/** … */` validated docblock by adding one star to the opener. See `skills/validate-mark/CPP.md`.
-
-## Item format
+## Format
 
 ### Functions / methods
 
@@ -104,11 +102,9 @@ enum class Name {
 };
 ```
 
-## Write a docblock
+### Write a docblock
 
-Prose convention for what to write inside an unvalidated `/* … */` docblock.
-
-### Functions / methods
+#### Functions / methods
 
 1. One-line brief on the first line.
 2. One line per parameter, `` `name`: ``, only what the parameter's name+type doesn't already convey.
@@ -136,7 +132,7 @@ Example:
      */
     bool bounding_box(const Polygon& poly, Rect& out);
 
-### `struct` / `class`
+#### `struct` / `class`
 
 1. One-line brief.
 2. One line per field, `` `field_name`: ``, only what the field's name+type doesn't already convey.
@@ -153,3 +149,32 @@ Example:
      * sizeof(RingBuf) == 32 on x86-64
      */
     struct RingBuf { uint32_t head, tail, cap; uint8_t* buf; };
+
+## Upgrade
+
+Extensions: `.c .h .cpp .cc .cxx .hpp .hh .hxx`
+Items: `function_definition`, `class_specifier`, `struct_specifier`.
+
+`/validate-mark path/to/file.cpp` (whole file) or `/validate-mark path/to/file.cpp::name` (one item) rewrites every unvalidated `/* ... */` docblock attached to a target item into a `/** ... */` validated docblock.
+
+Before:
+
+    /*
+     * Computes the area of a rectangle.
+     */
+    double area(const Rect& r) {
+        return r.w * r.h;
+    }
+
+After (post-tool hook rewrote the marker):
+
+    /**
+     * Computes the area of a rectangle.
+     */
+    double area(const Rect& r) {
+        return r.w * r.h;
+    }
+
+Rewrite: add one star to the opening — `/*` becomes `/**`. The trailing `*/` is unchanged. The body of the comment is preserved.
+
+Items without a preceding `/* ... */` block comment are skipped; the agent must write one as part of `/act`, then re-run `/validate` + `/validate-mark`.

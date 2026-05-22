@@ -1,4 +1,4 @@
-# Docblock format — Rust
+# Language spec — Rust
 
 Extensions: `.rs`
 Items: `function_item`, `impl_item`, `struct_item`, `enum_item`, `trait_item`, `mod_item`.
@@ -7,7 +7,9 @@ Items: `function_item`, `impl_item`, `struct_item`, `enum_item`, `trait_item`, `
 - **Unvalidated form**: ordinary `//` line comments.
 - Attachment: the run of doc-comment lines immediately preceding the item; `#[attribute]` items interleaved are allowed.
 
-## When you edit an item's body, downgrade its doc-comment in the same Edit
+## Downgrade
+
+When you edit an item's body, downgrade its doc-comment in the same Edit.
 
 Before:
 
@@ -27,11 +29,7 @@ Rewrite: for every line in the docblock run, replace leading `///` with `//`. In
 
 The PreToolUse guard rejects until the body change and the marker downgrade are in the same transaction.
 
-## Auto-upgrade by `/validate-mark`
-
-`/validate-mark path/to/file.rs` (or `::name`) rewrites every unvalidated `//` line in an attached docblock run into `///`. See `skills/validate-mark/RUST.md`.
-
-## Item format
+## Format
 
 ### Functions / methods
 
@@ -112,11 +110,9 @@ mod correct {
 }
 ```
 
-## Write a docblock
+### Write a docblock
 
-Prose convention for what to write inside an unvalidated `//` line-comment run.
-
-### Functions / methods
+#### Functions / methods
 
 1. One-line brief.
 2. One line per parameter, `` `name`: ``, only what the parameter's name+type doesn't already convey.
@@ -147,25 +143,50 @@ Example:
         }
     }
 
-### `struct`
+#### `struct`
 
 1. One-line brief.
 2. One line per field, `` `field_name`: ``, only what the field's name+type doesn't already convey.
 3. Invariants the type maintains.
 4. Layout / size / `repr` notes (where relevant).
 
-### `enum`
+#### `enum`
 
 1. One-line brief.
 2. One line per variant, `` `Variant`: ``, when this variant applies vs. its siblings.
 3. Invariants across variants (if any).
 
-### `trait`
+#### `trait`
 
 1. One-line brief.
 2. Contract: what implementors must guarantee (one line per obligation).
 3. When to implement vs. when to use as a bound.
 
-### `type` alias
+#### `type` alias
 
 One-line brief explaining why the alias exists — the semantic distinction from the underlying type.
+
+## Upgrade
+
+Extensions: `.rs`
+Items: `function_item`, `impl_item`, `struct_item`, `enum_item`, `trait_item`, `mod_item`.
+
+`/validate-mark path/to/file.rs` (whole file) or `/validate-mark path/to/file.rs::name` (one item) rewrites every unvalidated `//` line in an attached docblock run into a `///` outer doc comment.
+
+Before:
+
+    // Returns the next index, wrapping at `len`.
+    pub fn next(i: usize, len: usize) -> usize {
+        (i + 1) % len
+    }
+
+After (post-tool hook rewrote each line):
+
+    /// Returns the next index, wrapping at `len`.
+    pub fn next(i: usize, len: usize) -> usize {
+        (i + 1) % len
+    }
+
+Rewrite: for every line in the docblock run, replace leading `//` with `///` (preserving indentation). Lines that are already `///` or `//!` are left untouched. Block comments are not auto-upgraded (`/** */` upgrade is not currently performed — line-form is the canonical Rust doc style).
+
+Items without a preceding `//` line-comment run are skipped.

@@ -1,4 +1,4 @@
-# Docblock format — TypeScript
+# Language spec — TypeScript
 
 Extensions: `.ts`
 Items: `function_declaration`, `method_definition`, `class_declaration`, `interface_declaration`.
@@ -7,7 +7,9 @@ Items: `function_declaration`, `method_definition`, `class_declaration`, `interf
 - **Unvalidated form**: any other comment — `/* ... */` or `// ...`.
 - Attachment: the comment immediately preceding the item.
 
-## When you edit an item's body, downgrade its docblock in the same Edit
+## Downgrade
+
+When you edit an item's body, downgrade its docblock in the same Edit.
 
 Before:
 
@@ -29,11 +31,7 @@ After (body changed, so downgrade in the SAME Edit):
 
 Rewrite: drop one star — `/**` → `/*`. The trailing `*/` is unchanged.
 
-## Auto-upgrade by `/validate-mark`
-
-`/validate-mark path/to/file.ts` (or `::name`) rewrites unvalidated `/* … */` into `/** … */`.
-
-## Item format
+## Format
 
 ### Functions / methods
 
@@ -83,9 +81,9 @@ interface Name {
 }
 ```
 
-## Write a docblock
+### Write a docblock
 
-### Functions / methods
+#### Functions / methods
 
 1. One-line brief.
 2. One line per parameter, `` `name`: ``, only what the parameter's name+type doesn't already convey.
@@ -101,14 +99,39 @@ Template:
      */
     function method(a: A): R { ... }
 
-### `class`
+#### `class`
 
 1. One-line brief.
 2. One line per non-trivial field, `` `field`: ``.
 3. Invariants.
 
-### `interface`
+#### `interface`
 
 1. One-line brief stating the contract the interface defines.
 2. One line per method-signature, `` `method`: ``, only what the type+name doesn't convey.
 3. Invariants across implementations.
+
+## Upgrade
+
+Extensions: `.ts`
+Items: `function_declaration`, `method_definition`, `class_declaration`, `interface_declaration`.
+
+`/validate-mark path/to/file.ts` (whole file) or `/validate-mark path/to/file.ts::name` (one item) rewrites every unvalidated `/* ... */` docblock attached to a target item into a `/** ... */` validated docblock (TSDoc).
+
+Before:
+
+    /*
+     * Fetch a user by id.
+     */
+    async function fetchUser(id: string): Promise<User> { ... }
+
+After:
+
+    /**
+     * Fetch a user by id.
+     */
+    async function fetchUser(id: string): Promise<User> { ... }
+
+Rewrite: add one star to the opening — `/*` becomes `/**`. The trailing `*/` is unchanged. Body preserved.
+
+Items without a preceding `/* ... */` block comment are skipped.

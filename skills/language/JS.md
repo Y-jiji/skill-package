@@ -1,4 +1,4 @@
-# Docblock format — JavaScript
+# Language spec — JavaScript
 
 Extensions: `.js .jsx .mjs .cjs`
 Items: `function_declaration`, `method_definition`, `class_declaration`.
@@ -7,7 +7,9 @@ Items: `function_declaration`, `method_definition`, `class_declaration`.
 - **Unvalidated form**: any other comment — `/* ... */` or `// ...`.
 - Attachment: the comment immediately preceding the item.
 
-## When you edit an item's body, downgrade its docblock in the same Edit
+## Downgrade
+
+When you edit an item's body, downgrade its docblock in the same Edit.
 
 Before:
 
@@ -30,11 +32,7 @@ After (body changed, so downgrade in the SAME Edit):
 
 Rewrite: drop one star — `/**` → `/*`. The trailing `*/` is unchanged. The body of the comment is preserved.
 
-## Auto-upgrade by `/validate-mark`
-
-`/validate-mark path/to/file.js` (or `::name`) rewrites every unvalidated `/* … */` docblock into `/** … */` by adding one star to the opener.
-
-## Item format
+## Format
 
 ### Functions / methods
 
@@ -70,11 +68,9 @@ class Name {
 }
 ```
 
-## Write a docblock
+### Write a docblock
 
-Prose convention for the unvalidated `/* … */` block.
-
-### Functions / methods
+#### Functions / methods
 
 1. One-line brief.
 2. One line per parameter, `` `name`: ``, only what the parameter's name doesn't already convey.
@@ -99,9 +95,34 @@ Example:
      */
     function debounce(fn, ms) { ... }
 
-### `class`
+#### `class`
 
 1. One-line brief.
 2. One line per non-trivial field, `` `field`: ``.
 3. Invariants the class maintains.
 4. Lifecycle notes (where relevant).
+
+## Upgrade
+
+Extensions: `.js .jsx .mjs .cjs`
+Items: `function_declaration`, `method_definition`, `class_declaration`.
+
+`/validate-mark path/to/file.js` (whole file) or `/validate-mark path/to/file.js::name` (one item) rewrites every unvalidated `/* ... */` docblock attached to a target item into a `/** ... */` validated docblock.
+
+Before:
+
+    /*
+     * Debounce a callback by `ms` milliseconds.
+     */
+    function debounce(fn, ms) { ... }
+
+After (post-tool hook rewrote the marker):
+
+    /**
+     * Debounce a callback by `ms` milliseconds.
+     */
+    function debounce(fn, ms) { ... }
+
+Rewrite: add one star to the opening — `/*` becomes `/**`. The trailing `*/` is unchanged. Body of the comment preserved.
+
+Items without a preceding `/* ... */` block comment are skipped — write one in `/act` first, then re-run `/validate-mark`.

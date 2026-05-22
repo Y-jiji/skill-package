@@ -1,4 +1,4 @@
-# Docblock format — Java
+# Language spec — Java
 
 Extensions: `.java`
 Items: `method_declaration`, `constructor_declaration`, `class_declaration`, `interface_declaration`.
@@ -7,7 +7,9 @@ Items: `method_declaration`, `constructor_declaration`, `class_declaration`, `in
 - **Unvalidated form**: any other comment — `/* ... */` or `// ...`.
 - Attachment: the comment immediately preceding the item.
 
-## When you edit an item's body, downgrade its docblock in the same Edit
+## Downgrade
+
+When you edit an item's body, downgrade its docblock in the same Edit.
 
 Before:
 
@@ -29,11 +31,7 @@ After (body changed, so downgrade in the SAME Edit):
 
 Rewrite: drop one star — `/**` → `/*`. The trailing `*/` is unchanged.
 
-## Auto-upgrade by `/validate-mark`
-
-`/validate-mark path/to/file.java` (or `::name`) rewrites unvalidated `/* … */` docblocks into `/** … */`.
-
-## Item format
+## Format
 
 ### Methods / constructors
 
@@ -84,9 +82,9 @@ Prefer direct-mutable design. Example: for `add` into a bounded collection, pref
 }
 ```
 
-## Write a docblock
+### Write a docblock
 
-### Methods / constructors
+#### Methods / constructors
 
 1. One-line brief.
 2. One line per parameter, `` `name`: ``, only what the parameter's name+type doesn't already convey.
@@ -102,15 +100,40 @@ Template:
      */
     public R method(A a) { ... }
 
-### `class`
+#### `class`
 
 1. One-line brief.
 2. One line per non-trivial field, `` `field`: ``.
 3. Invariants the class maintains.
 4. Threading / lifecycle notes (where relevant).
 
-### `interface`
+#### `interface`
 
 1. One-line brief stating the contract.
 2. One line per method-signature.
 3. Invariants across implementations.
+
+## Upgrade
+
+Extensions: `.java`
+Items: `method_declaration`, `constructor_declaration`, `class_declaration`, `interface_declaration`.
+
+`/validate-mark path/to/file.java` (whole file) or `/validate-mark path/to/file.java::name` (one item) rewrites every unvalidated `/* ... */` docblock attached to a target item into a `/** ... */` validated Javadoc.
+
+Before:
+
+    /*
+     * Returns the user's display name.
+     */
+    public String displayName() { ... }
+
+After:
+
+    /**
+     * Returns the user's display name.
+     */
+    public String displayName() { ... }
+
+Rewrite: add one star to the opening — `/*` becomes `/**`. The trailing `*/` is unchanged. Body preserved.
+
+Items without a preceding `/* ... */` block comment are skipped.

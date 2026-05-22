@@ -1,4 +1,4 @@
-# Docblock format — Python
+# Language spec — Python
 
 Extensions: `.py`
 Items: `function_definition`, `class_definition`.
@@ -7,7 +7,9 @@ Items: `function_definition`, `class_definition`.
 - **Unvalidated form**: a `#` line-comment run immediately preceding the def/class (modulo decorators). `Lang._attach` surfaces it when no inline docstring exists.
 - Attachment: first body statement (if a string literal), else the preceding `#` run.
 
-## When you edit an item's body, downgrade its docstring in the same Edit
+## Downgrade
+
+When you edit an item's body, downgrade its docstring in the same Edit.
 
 Before:
 
@@ -25,11 +27,7 @@ Rewrite: delete the docstring statement (the triple-quoted string at the top of 
 
 The PreToolUse guard rejects the Edit until the body change and the docstring removal land in the same transaction.
 
-## Auto-upgrade by `/validate-mark`
-
-`/validate-mark path/to/file.py` (or `::name`) structurally rewrites each eligible `#` run into a docstring per `skills/validate-mark/PYTHON.md` Case A / B / C.
-
-## Item format
+## Format
 
 ### Functions / methods
 
@@ -62,11 +60,9 @@ class Name:
     # at most 7 public methods (excluding dunder methods)
 ```
 
-## Write a docblock
+### Write a docblock
 
-Prose convention for what to write inside the `#` comment block above a `def`/`class`. The hook only enforces marker form (Rule A); this section describes content.
-
-### Functions / methods
+#### Functions / methods
 
 1. One-line brief.
 2. One line per parameter, `` `name`: ``, only what the parameter's name+type-hint doesn't already convey.
@@ -93,7 +89,7 @@ Example:
     def parse_record(line: str, schema: list[Callable[[str], object]]) -> tuple:
         ...
 
-### `class`
+#### `class`
 
 1. One-line brief.
 2. One line per non-trivial attribute, `` `attr`: ``, only what the attribute's name+annotation doesn't already convey.
@@ -109,3 +105,27 @@ Example:
     # Not thread-safe; wrap in a Lock for cross-thread use
     class FlushBuffer:
         def __init__(self, path: Path, max_pending: int = 1 << 20): ...
+
+## Upgrade
+
+Extensions: `.py`
+
+Python's validated form is a docstring (the first statement of a function/class body); the unvalidated form is a `#` comment run on lines immediately preceding the `def`/`class` (modulo decorators). `/validate-mark path/to/file.py` and `/validate-mark path/to/file.py::name` convert the comment run into a docstring **inside** the body — a structural rewrite, not a marker swap.
+
+For each `function_definition` / `class_definition` selected (all items, or the filter-matched item):
+
+- **Case A — body already starts with a string literal**: item is already in validated form; no change.
+- **Case B — body does NOT start with a string literal, AND a `#` comment run is the immediate preceding sibling of the def/class** (decorators OK): convert.
+    - Read the run of consecutive line-comment siblings whose lines contain only the comment (no inline code before the `#`).
+    - Strip the `#` prefix and exactly one following space (when present) from each line; blank `#`-stripped lines remain blank; relative indent of stripped content is preserved.
+    - Join the stripped lines into the docstring body.
+    - Emit a triple-quoted string as a new first statement of the body, indented at the body's existing indent level.
+    - Delete the original `#` comment lines (entire lines, including their trailing newlines).
+    - Both edits land in the same write to the file.
+- **Case C — body does NOT start with a string literal AND there is no preceding `#` comment run**: nothing to upgrade. The aggregate result message is `no eligible docblocks to upgrade in <file>`.
+
+Decorators and `_CSTYLE_WRAPPERS` (`attribute_specifier`, `annotation`, etc.) between the `#` run and the def/class do not break the attachment: the parser walks out of any enclosing `decorated_definition` so the `#` run above the wrapper is still seen.
+
+Quoting: emits `"""` by default. If the joined body contains `"""`, falls back to `'''`. If both are present, uses `"""` and escapes each `"""` occurrence as `\"\"\"` inside the body.
+
+The downgrade direction (Rule B when an agent edits a body) is in the `## Downgrade` section above. The "Write a docblock" prose convention in `## Format` describes what to write inside the `#` block that this upgrade will convert.
