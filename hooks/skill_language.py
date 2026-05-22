@@ -39,6 +39,6 @@ def post(args: str, root: Path) -> None:
     if not m:
         notify(f"Section {section!r} not found in {ext}.md. Available: {_SECTIONS}")
         return
-    next_h = re.search(r"(?m)^## ", text, m.end())
+    next_h = re.compile(r"(?m)^## ").search(text, m.end())
     end = next_h.start() if next_h else len(text)
     notify(text[m.start():end].rstrip())

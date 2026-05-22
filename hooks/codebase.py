@@ -301,7 +301,11 @@ class Lang:
 
     def _attach(self, node, src):
         if self.attachment == "preceding_comment_cstyle":
-            sib = node.prev_sibling
+            target = node
+            while (target.parent is not None
+                   and target.parent.type in {"export_statement", "ambient_declaration"}):
+                target = target.parent
+            sib = target.prev_sibling
             while sib is not None and sib.type in Lang._CSTYLE_WRAPPERS:
                 sib = sib.prev_sibling
             if sib is not None and sib.type == "comment":

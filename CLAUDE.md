@@ -9,7 +9,7 @@
 - `plan/`, `note/` — working directories for propose/note workflows
 - `tests/` — test suite
 
-## Instructions
+## Project Specific Instructions
 
-You are allowed to use git add and commit with (single-line commit message). 
+You are allowed to use *git add* and *git commit* with (single-line commit message). 
 You can do so when you made a change. 
