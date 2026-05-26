@@ -16,12 +16,10 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from markers import MARKER_RE as _MARKER_RE  # noqa: E402
+from markers import MARKER_RE as _MARKER_RE, CLOSE_PREFIX as _CLOSE_PREFIX, ABORT_PREFIX as _ABORT_PREFIX  # noqa: E402
 
 
 _PROJECT_ROOT = None
-_CLOSE_PREFIX = "[play-close]"
-_ABORT_PREFIX = "[play-abort]"
 _MONITOR_CMD_RE = re.compile(r"^python3\s+\S*agent_monitor\.py\s+implementer\s+\S+\s*$")
 
 

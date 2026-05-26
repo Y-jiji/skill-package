@@ -25,6 +25,10 @@ MARKER_RE = re.compile(
     r"(?m)^<!-- play-(close|abort): [^\n]+ -->$"
 )
 
+# Sentinel prefix constants — every consumer imports from here; no local copies allowed.
+CLOSE_PREFIX = "[play-close]"
+ABORT_PREFIX = "[play-abort]"
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")

@@ -30,11 +30,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from markers import close_line, abort_line, now_iso  # noqa: E402
-
-
-_CLOSE_PREFIX = "[play-close]"
-_ABORT_PREFIX = "[play-abort]"
+from markers import close_line, abort_line, now_iso, CLOSE_PREFIX as _CLOSE_PREFIX, ABORT_PREFIX as _ABORT_PREFIX  # noqa: E402
 
 
 def _root() -> Path:

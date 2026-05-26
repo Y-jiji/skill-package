@@ -6,9 +6,11 @@ on AskUserQuestion: the parent cannot issue [play-close] or [play-abort] termina
 """
 from __future__ import annotations
 
+import sys
+from pathlib import Path
 
-_CLOSE_PREFIX = "[play-close]"
-_ABORT_PREFIX = "[play-abort]"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from markers import CLOSE_PREFIX as _CLOSE_PREFIX, ABORT_PREFIX as _ABORT_PREFIX  # noqa: E402
 
 
 def pre_tool_use(data: dict):
