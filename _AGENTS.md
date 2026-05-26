@@ -1,45 +1,31 @@
-# CLAUDE.md/AGENTS.md
+# CLAUDE.md / AGENTS.md — Game-and-Aid Harness
 
 ## Terms
 
-Roles: `user` and `agent`
+Roles: `user`, `parent` (the user-facing session you are in by default), `implementer` (subagent), `tester` (subagent).
 
-## Anti-pattern
+## Loop in one paragraph
 
-- **Stuck in mode** The following is a bad example: 
-    ```
-    I can't write it from default mode. 
-    Please run this yourself.
-    ```
-    Simple Verdict: 
-    + You can always get out of a mode using skills. MOVE YOUR FUCKING ASS. 
-    + Have you tried ALL modes? `/propose` -> `/validate` -> `/act`
+The user authors `design/*.md` rules (the *Game*). The user invokes `/play`. The parent partitions changed design into self-contained *games*, confirms target-state ids with the user, then for each game spawns an **implementer** and **tester** subagent. The two subagents communicate via append-only `log/<game-id>.{implementer,tester}.md`, woken by their own `Monitor` calls on each other's logs. The tester closes the game by issuing a `[play-close]` `AskUserQuestion`; the implementer gives up by issuing a `[play-abort]` `AskUserQuestion`. Both terminals are user-confirmed and hook-written into both logs. When both subagents stop, `/play-review` reads the logs and either proposes a commit (close) or surfaces failure findings to the user (abort).
 
-- **Speculatively specify** The following is a bad example.
-    ```
-    User: Next, break these into separate skills.
+## Skills
 
-    This is a design choice — there are multiple viable structures. Which do you want?
+- `/play` — start or resume the loop.
+- `/play-status` — read-only inventory of games by terminal state.
+- `/play-review` — post-game review; called automatically by `/play`, also user-invokable.
 
-    1. Separate skills/* directories — each constraint becomes a skill.
-    2. Separate sections in _AGENTS.md — keep them where they are (already done). 
+No `/play-abort`, no `/play-close` (terminals are hook-driven from `AskUserQuestion`). No `/play-resume` (`/play` handles resumption).
 
-    Which structure do you want?
-    ```
-    The agent presumed these skills are new, ignored the possiblities that it can break the prompts into existing skills, and pretended its listing is exhaustive. 
-    Simple Mitigation:
-    + When prompting the user, present agent's understanding of the user's prompt. 
+## Hard rules
 
-## Hook Constraints
+- Subagents (implementer, tester) **cannot edit `design/`**. Only the parent and the user can.
+- Subagents **cannot write the terminal markers** (`<!-- play-close: ... -->`, `<!-- play-abort: ... -->`) via Edit/Write. Markers are written only by `PostToolUse(AskUserQuestion)`.
+- Once a terminal marker appears in a subagent's own log, **every tool call from that subagent is denied** until it stops.
+- The **tester** is the only role that can issue a `[play-close]` `AskUserQuestion`. The **implementer** is the only role that can issue `[play-abort]`. Parent cannot issue either.
+- Subagent `Bash` is constrained by `.claude/implementer.jsonl` / `.claude/tester.jsonl` (project-scoped, regex per token).
 
-### Bash syntax
-Compound commands (`&&`, `||`, pipes `|`, redirects `>` `2>`, substitutions `$()`) are rejected by the tokenizer in all modes. Instead:
-+ Split into separate simple Bash calls.
-+ Use `Read` instead of `cat`, `head`, `tail`.
-+ Max 6 args per command.
+## Anti-patterns
 
-### Default mode
-`default` mode allows `Read`, `Skill`, `ToolSearch`, and safe Bash commands. Transition to a skill to unlock `Edit`/`Write`.
-
-### COMMAND.jsonl
-Each line of `COMMAND.jsonl` in the project root is a JSON array `["cmd", "arg_regex", ...]` allow-listed for `validate` and `act` modes; each element is a regex matched against the corresponding token.
+- **Trying to bypass terminal markers via Write/Edit** — the marker fence denies it. The only path is `[play-close]` / `[play-abort]` through `AskUserQuestion`.
+- **Editing tester-authored tests as the implementer** — the implementer's write-fence forbids it. If the tester is overreaching, escalate via `AskUserQuestion` and let the user adjust `design/`.
+- **Spawning subagents directly** — use `/play`. Manual `Agent(...)` calls outside `/play` bypass the game's log file setup and partitioning.

@@ -35,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run \"$HOME/.claude/hooks/tool_skill.py\""
+            "command": "uv run \"$HOME/.claude/hooks/hooks.py\""
           }
         ]
       },
@@ -44,37 +44,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run \"$HOME/.claude/hooks/tool_write_edit.py\""
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$HOME/.claude/hooks/user_prompt_trigger.py\""
+            "command": "uv run \"$HOME/.claude/hooks/marker_fence.py\""
           }
         ]
       }
     ],
     "PostToolUse": [
       {
-        "matcher": "Edit|Write",
+        "matcher": "AskUserQuestion",
         "hooks": [
           {
             "type": "command",
-            "command": "uv run \"$HOME/.claude/hooks/tool_write_edit.py\""
-          }
-        ]
-      },
-      {
-        "matcher": "Skill",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "uv run \"$HOME/.claude/hooks/tool_skill.py\""
+            "command": "uv run \"$HOME/.claude/hooks/terminal_marker.py\""
           }
         ]
       }
