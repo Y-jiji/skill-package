@@ -27,8 +27,10 @@ from __future__ import annotations
 import json
 import os
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from markers import close_line, abort_line, now_iso  # noqa: E402
 
 
 _CLOSE_PREFIX = "[play-close]"
@@ -40,7 +42,7 @@ def _root() -> Path:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return now_iso()
 
 
 def _active_game_logs() -> tuple[Path, Path] | None:
@@ -97,12 +99,12 @@ def _process_terminals(questions, answers) -> bool:
         text = (q.get("question") or "").lstrip()
         ans = (answers or {}).get(q.get("question") or "", "")
         if text.startswith(_CLOSE_PREFIX) and ans == "Yes":
-            line = f"<!-- play-close: {ts} -->"
+            line = close_line(ts)
             _append(imp_log, line)
             _append(tes_log, line)
             handled_any = True
         elif text.startswith(_ABORT_PREFIX) and ans == "Yes":
-            line = f"<!-- play-abort: {ts} -->"
+            line = abort_line(ts)
             _append(imp_log, line)
             _append(tes_log, line)
             handled_any = True

@@ -12,13 +12,16 @@ from __future__ import annotations
 import json
 import re
 import shlex
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from markers import MARKER_RE as _MARKER_RE  # noqa: E402
 
 
 _PROJECT_ROOT = None
 _CLOSE_PREFIX = "[play-close]"
 _ABORT_PREFIX = "[play-abort]"
-_MARKER_RE = re.compile(r"<!--\s*play-(close|abort):")
 _MONITOR_CMD_RE = re.compile(r"^python3\s+\S*agent_monitor\.py\s+implementer\s+\S+\s*$")
 
 

@@ -17,12 +17,11 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import sys
 from pathlib import Path
 
-
-_MARKER_RE = re.compile(r"<!--\s*play-(close|abort):")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from markers import MARKER_RE as _MARKER_RE  # noqa: E402
 
 
 def _project_root() -> Path:
