@@ -2,14 +2,11 @@
 
 PreToolUse responsibilities:
 - Edit/Write: deny writes to design/**, log/<game>.implementer.md, and any non-test code paths.
-  Allowed: own log (only via hook-driven appends — tests get blocked from authoring logs directly?
-  No — the tester authors *test code*, not log content; log appends go through agents naturally,
-  but terminal markers are fenced by marker_fence.py). Tester-authored test paths follow the
-  *.tester.<ext> convention or tests/tester/ subtree.
+  Tester-authored test paths: *.tester.<ext> convention or tests/tester/ subtree.
 - Bash: enforce .claude/tester.jsonl allow-list.
-- AskUserQuestion: allow non-sentinel questions and [play-close] prefix; deny [play-abort].
 - Read: re-anchor reads of the implementer's log with a purpose prefix.
-- Forced-stop: if tester's own log contains a terminal marker, deny every tool call.
+- Forced-stop: deny every tool call if implementer's log has an abort-request sentinel or own
+  log has a terminal marker (parent wrote it).
 """
 from __future__ import annotations
 
@@ -20,7 +17,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from markers import MARKER_RE as _MARKER_RE, CLOSE_PREFIX as _CLOSE_PREFIX, ABORT_PREFIX as _ABORT_PREFIX  # noqa: E402
+from markers import MARKER_RE as _MARKER_RE, ABORT_REQUEST_RE as _ABORT_REQUEST_RE  # noqa: E402
 
 
 _PROJECT_ROOT = None
@@ -52,13 +49,28 @@ def _own_log_path() -> Path | None:
     return candidates[0] if candidates else None
 
 
-def _has_terminal(log_path: Path | None) -> bool:
-    if log_path is None or not log_path.exists():
-        return False
+def _peer_log_path() -> Path | None:
+    root = _root() / "log"
+    if not root.is_dir():
+        return None
+    candidates = sorted(root.glob("*.implementer.md"), key=lambda p: p.stat().st_mtime, reverse=True)
+    return candidates[0] if candidates else None
+
+
+def _read_log(path: Path | None) -> str:
+    if path is None or not path.exists():
+        return ""
     try:
-        return bool(_MARKER_RE.search(log_path.read_text(encoding="utf-8")))
+        return path.read_text(encoding="utf-8")
     except OSError:
-        return False
+        return ""
+
+
+def _should_force_stop() -> bool:
+    return bool(
+        _ABORT_REQUEST_RE.search(_read_log(_peer_log_path()))
+        or _MARKER_RE.search(_read_log(_own_log_path()))
+    )
 
 
 def _load_bash_allowlist():
@@ -112,8 +124,8 @@ def pre_tool_use(data: dict):
     tool_name = data.get("tool_name") or ""
     tool_input = data.get("tool_input") or {}
 
-    # Forced stop: if own log has a terminal marker, deny everything.
-    if _has_terminal(_own_log_path()):
+    # Forced stop: implementer signalled abort-request, or parent wrote a terminal marker.
+    if _should_force_stop():
         return ("deny", "game terminal reached — produce your final message and stop")
 
     if tool_name in {"Edit", "Write"}:
@@ -140,13 +152,6 @@ def pre_tool_use(data: dict):
         if _MONITOR_CMD_RE.match(cmd):
             return None
         return ("deny", "tester Monitor command must be `python3 .../agent_monitor.py tester <game-id>`")
-
-    if tool_name == "AskUserQuestion":
-        for q in (tool_input.get("questions") or []):
-            text = (q.get("question") or "").lstrip()
-            if text.startswith(_ABORT_PREFIX):
-                return ("deny", "[play-abort] is reserved for the implementer; the tester cannot abort the game")
-        return None
 
     if tool_name == "Read":
         rel = _rel(tool_input.get("file_path") or "")

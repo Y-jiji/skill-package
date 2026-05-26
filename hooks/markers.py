@@ -29,6 +29,11 @@ MARKER_RE = re.compile(
 CLOSE_PREFIX = "[play-close]"
 ABORT_PREFIX = "[play-abort]"
 
+# Request sentinels — written by subagents to their own logs to signal stop-intent.
+# Not terminal markers; game state is never derived from these.
+CLOSE_REQUEST_RE = re.compile(r"(?m)^<!-- close-request: [^\n]+ -->$")
+ABORT_REQUEST_RE = re.compile(r"(?m)^<!-- abort-request: [^\n]+ -->$")
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -40,6 +45,14 @@ def close_line(ts: str | None = None) -> str:
 
 def abort_line(ts: str | None = None) -> str:
     return f"<!-- play-abort: {ts or now_iso()} -->"
+
+
+def close_request_line(ts: str | None = None) -> str:
+    return f"<!-- close-request: {ts or now_iso()} -->"
+
+
+def abort_request_line(ts: str | None = None) -> str:
+    return f"<!-- abort-request: {ts or now_iso()} -->"
 
 
 def text_has_marker(text: str) -> bool:

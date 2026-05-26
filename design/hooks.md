@@ -18,7 +18,6 @@ When `agent_type` is absent (parent session) or unrecognized, the dispatcher rou
 **Hooks wired in `claude.json`**:
 - `PreToolUse(.*)` → `hooks.py` (dispatcher).
 - `PreToolUse(Edit|Write)` → `marker_fence.py` (role-independent — see `design/markers.md`).
-- `PostToolUse(AskUserQuestion)` → `terminal_marker.py` (role-independent — see `design/markers.md`, `design/logs.md`).
 
 All hooks fire on every applicable tool call; role differentiation happens inside the per-role modules.
 

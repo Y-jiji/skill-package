@@ -16,9 +16,9 @@ Two custom agent definitions installed to `~/.claude/agents/`. No shared base. R
 
 Makes code satisfy the design contract. Edits code, appends progress to its log, reacts to Monitor notifications from the tester's log and from `design/` changes.
 
-Cannot edit `design/`; cannot edit the tester's log or any file in the tester's namespace (`*.tester.<ext>` or `tests/tester/`); cannot author markers via Edit/Write; cannot issue `[play-close]`. Bash and Monitor are allow-listed (see `design/hooks.md`).
+Cannot edit `design/`; cannot edit the tester's log or any file in the tester's namespace (`*.tester.<ext>` or `tests/tester/`); cannot author markers via Edit/Write. Bash and Monitor are allow-listed (see `design/hooks.md`).
 
-Exits a game only by issuing `[play-abort]` `AskUserQuestion` and getting user confirmation. Stop semantics: see `design/markers.md`.
+Exits a game by appending `<!-- abort-request: <ts> -->` to its own log and calling `TaskStop`. The parent handles user confirmation and writes the terminal marker. Stop semantics: see `design/markers.md`.
 
 ## Tester
 
@@ -26,6 +26,6 @@ Two jobs: **contract check** (compare implementer's code/claims against the desi
 
 Reports problems without diagnosing them. Names the test invocation; implementer reproduces as given. Removes own stale tests when design or code surface has moved.
 
-Cannot edit `design/`, cannot edit the implementer's log or any code outside its test namespace, cannot author markers via Edit/Write, cannot issue `[play-abort]`. Bash and Monitor allow-listed.
+Cannot edit `design/`, cannot edit the implementer's log or any code outside its test namespace, cannot author markers via Edit/Write. Bash and Monitor allow-listed.
 
-Exits a game only by issuing `[play-close]` `AskUserQuestion`. The close question must be short, with redacted test counts and simplified enumerations; dump to a temp file for longer evidence. A game's final actor is always the tester.
+Exits a game by appending `<!-- close-request: <ts> -->` to its own log and calling `TaskStop`. The close entry must include a compact summary of what was verified. The parent handles user confirmation and writes the terminal marker. A game's final actor is always the tester.

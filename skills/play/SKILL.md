@@ -61,9 +61,14 @@ For each confirmed game id:
    - Path(s) under `design/` this game must satisfy.
    - Nothing else. The role's protocol lives in its agent definition.
 
-3. **Wait** (foreground default — both `Agent` calls block until they return). If the user has chosen to background via the UI, fire your own `Monitor` on the two log files watching for terminal markers.
+3. **Wait** (foreground default — both `Agent` calls block until they return). If the user has chosen to background via the UI, fire your own `Monitor` on the two log files watching for `close-request` or `abort-request` sentinels.
 
-4. **On both subagents' return**, invoke `/play-review` with the game id.
+4. **On both subagents' return**, read both logs to find a request sentinel:
+   - `<!-- close-request: ... -->` in the tester's log → issue `[play-close]` `AskUserQuestion` to the user. On "Yes," append `<!-- play-close: <ts> -->` to both logs via Bash. On "No," leave in-flight.
+   - `<!-- abort-request: ... -->` in the implementer's log → issue `[play-abort]` `AskUserQuestion`. On "Yes," append `<!-- play-abort: <ts> -->` to both logs via Bash.
+   - Neither found → report abnormal state; do not act.
+
+   Then invoke `/play-review` with the game id.
 
 ## 6. Continue or stop
 
@@ -72,6 +77,5 @@ After `/play-review` finishes, proceed to the next game in the partition. When a
 ## Hard rules for the parent during /play
 
 - Do not paraphrase or quote design docs in spawn prompts — only reference paths.
-- Do not issue `[play-close]` or `[play-abort]` `AskUserQuestion`s — the harness will deny these for the parent.
-- Do not write the terminal markers manually — the marker fence will deny it.
-- Do not modify `log/` files directly — only via spawning subagents whose hooks append.
+- Write terminal markers only via Bash append — never via Edit/Write (the marker fence blocks it).
+- Do not modify `log/` files for any other reason — logs are subagent-owned except for the terminal marker append.

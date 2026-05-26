@@ -49,16 +49,6 @@
         ]
       }
     ],
-    "PostToolUse": [
-      {
-        "matcher": "AskUserQuestion",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "uv run \"$HOME/.claude/hooks/terminal_marker.py\""
-          }
-        ]
-      }
-    ]
+    "PostToolUse": []
   }
 }

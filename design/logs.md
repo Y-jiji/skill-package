@@ -1,7 +1,6 @@
 ---
 scope:
   - log/
-  - hooks/terminal_marker.py
   - hooks/agent_implementer.py
   - hooks/agent_tester.py
 ---
@@ -11,10 +10,6 @@ scope:
 Logs live at `log/<game-id>.implementer.md` and `log/<game-id>.tester.md`. One append-only log per role per game. **Flat layout** — game ids contain no slashes. (`design/` allows nesting; `log/` does not.)
 
 **Lifecycle**: the parent creates both log files before spawning either subagent (if absent). Subagents never create logs — only append. The agent-log mapping is fixed by the harness, not negotiated per spawn: `implementer` ↔ `*.implementer.md`, `tester` ↔ `*.tester.md`.
-
-**Auto-logging of non-sentinel `AskUserQuestion`**: `PostToolUse(AskUserQuestion)` appends `Q: / A: / notes:` entries to the inquiring subagent's own log. The subagent does not need to remember to log. This fulfills "the log *is* Aid": human help arrives via `AskUserQuestion` and is durably recorded.
-
-The implementer must consult its log before re-asking a blocker the user already resolved. Terminal-prefixed questions are NOT auto-logged (their marker is the record).
 
 **Parent has no log.** Parent ↔ user conversations land directly in `design/` (as rule edits) or in the user's session transcript.
 
