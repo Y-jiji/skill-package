@@ -11,7 +11,7 @@ Writes adversarial tests against the implementation and runs the satisfaction ch
 ## Inputs
 
 - `design_docs_v2` (by path)
-- `code_current` (implementation read-only; tester may write to its own test namespace — location is language-specific, see [language-specs.md](language-specs.md))
+- `code_current` (implementation read-only; tester may write where the per-project `write_constraints` permit and run Bash matching `tester_bash_allowlist`, per [harness-config-interface.md](harness-config-interface.md))
 - Shared log (entries received via the monitor command, which blocks until a new entry from the implementer arrives)
 - User instruction (when resumed after a declined stop request)
 
@@ -19,7 +19,7 @@ Writes adversarial tests against the implementation and runs the satisfaction ch
 
 - Implementer message **content** is not visible to the tester. The tester reasons only from code and design docs.
 - This isolation is **hard-enforced** in the monitor: when the tester's monitor returns an implementer entry, the `content` field is replaced by the sentinel `"<redacted>"`. The other fields (`role`, `session_id`, `timestamp`) are preserved so the tester learns *that* the implementer acted — a wake signal to re-read the code — without learning *what* was said. See [monitor.md](monitor.md).
-- The tester reads and executes implementation code but does not modify it. Enforcement is language-specific, defined in [language-specs.md](language-specs.md).
+- The tester reads and executes implementation code but does not modify it. Enforcement is per-project, defined via the harness config — see [harness-config-interface.md](harness-config-interface.md).
 
 ## Behavior
 

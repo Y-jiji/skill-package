@@ -20,7 +20,7 @@ Drives code toward satisfying `design_docs_v2` within one game iteration.
 
 The implementer reacts to tester messages as they arrive via the monitor. When the tester requests interface exposure, the implementer adds the requested interfaces to the code so the tester can proceed.
 
-The implementer cannot modify design docs. It cannot modify tester-owned test files. Language-specific write constraints (e.g., for Rust, the implementer's write tools may not reduce the number of lines inside any `#[test]` item) are defined in [language-specs.md](language-specs.md) and enforced by hooks.
+The implementer cannot modify design docs. Per-project write constraints — including the implementer Bash allowlist (which is empty by default, so the implementer has Bash access only to the harness scripts `harness-monitor` and `harness-append`) and any `write_constraints` entries that target the implementer — are defined in [harness-config-interface.md](harness-config-interface.md) and enforced by hooks. The implementer is restricted to "write code + harness scripts" by default.
 
 ## Output
 

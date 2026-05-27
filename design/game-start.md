@@ -23,7 +23,7 @@ The watch loop uses the same monitor command roles use — the parent calls it v
 ## Process
 
 1. **Bootstrap check**: if `design/` is empty, refuse to start and tell the user to run `/bootstrap` first; bootstrap is not auto-triggered
-2. **Language detection**: detect the project language and load the corresponding spec from [language-specs.md](language-specs.md); this determines the tester's namespace and the implementer's write constraints
+2. **Config check**: confirm `.claude/settings.json` contains a `functional-harness` namespace (per [harness-config-interface.md](harness-config-interface.md)). If missing, refuse to start and tell the user to run `/configure` first; configuration is not auto-triggered
 3. **State detection**:
    - `design_docs_v1`: last committed state of `design/`
    - `design_docs_v2`: current state of `design/`
