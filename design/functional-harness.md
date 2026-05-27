@@ -45,3 +45,7 @@ Infers `design_docs_v1` from existing `code` when `design_docs_v1 = ∅`.
 - **Input**: `code_current`
 - **Output**: `design_docs_v1` (a design doc set consistent with `code_current`)
 - **Contract**: the inferred docs must be a valid input to `g`; they need not be complete or minimal
+
+## See also
+
+- [packaging.md](packaging.md) — how this system is shipped and installed

@@ -12,20 +12,30 @@ implements: game entry point
 
 Entry point skill. Detects everything from the current state of `design/` and the codebase. No arguments.
 
+## Mechanism
+
+`/game-start` is a skill. The skill walks through its process steps directly within its parent Claude Code session and uses the Task tool to launch the implementer and tester subagents.
+
+Both Task calls are issued from the same parent message with `run_in_background: true`. The parent resumes immediately after issuing the calls; the subagents run asynchronously and notify the parent on completion. The parent then enters its watch loop, which drives termination (see [termination.md](termination.md)).
+
+The watch loop uses the same monitor command roles use — the parent calls it via Bash in a loop, blocking on each call until the next dialog-log entry arrives, then inspecting the entry. The parent's cursor lives in the same `cursors` map under an `"orchestrator"` key. The parent acts only on stop-request entries and ignores the rest.
+
 ## Process
 
-1. **Bootstrap check**: if `design/` is empty, run bootstrap first to infer `design_docs_v1` from `code_current`
-2. **State detection**:
+1. **Bootstrap check**: if `design/` is empty, refuse to start and tell the user to run `/bootstrap` first; bootstrap is not auto-triggered
+2. **Language detection**: detect the project language and load the corresponding spec from [language-specs.md](language-specs.md); this determines the tester's namespace and the implementer's write constraints
+3. **State detection**:
    - `design_docs_v1`: last committed state of `design/`
    - `design_docs_v2`: current state of `design/`
-   - In-flight game: dialog log exists without a terminal marker
-3. **Branch**:
-   - In-flight game exists → resume: re-spawn implementer and tester with existing dialog log
-   - No in-flight game → start: create dialog log, register path in hooks list, spawn implementer and tester
-4. **Handoff**: termination protocol manages the game from here
+   - In-flight game: the registry (`/tmp/functional-harness/PROJECT-PATH-.../game.json`) exists and its dialog log has no terminal marker
+4. **Branch**:
+   - In-flight game exists → resume: re-launch implementer and tester via Task (both backgrounded) against the existing registry and dialog log; monitor cursors in the registry let each role catch up on missed entries
+   - No in-flight game → start: create the registry, generate the random `/tmp` dialog log path, write it into the registry, then launch implementer and tester via Task (both backgrounded, issued in one parent message)
+5. **Watch loop**: parent calls the monitor command (cursor key `"orchestrator"`) in a loop, ignoring non-stop-request entries; on a stop-request, surfaces it to the user, collects response, then writes a terminal marker via the marker-write script (close/abort) or appends the user instruction via the custom append tool and re-launches the requester (decline)
+6. **Completion**: when a terminal marker is in the log and both backgrounded Tasks have notified completion, `/game-start` returns
 
 ## Contracts
 
-- Exactly one game runs at a time
-- Dialog log path is registered in the hooks list before any agent is spawned
-- Both agents are spawned before either arms its monitor
+- Exactly one game runs at a time per project
+- The registry is created (with `dialog_log_path` populated) before either subagent is launched, so the first monitor call from either role can resolve the log
+- Both subagents are launched in the same parent message via parallel Task calls with `run_in_background: true`

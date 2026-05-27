@@ -8,6 +8,8 @@ implements: bootstrap
 
 Infers `design_docs_v1` from `code_current` when `design_docs_v1 = ∅`. Produces design docs written to `design/` for user review before `g` is applied.
 
+Bootstrap is exposed as a standalone skill (`/bootstrap`), invoked by the user when needed. It is not auto-triggered by `/game-start`.
+
 ## Interface
 
 - **Input**: `code_current`
@@ -19,6 +21,10 @@ Infers `design_docs_v1` from `code_current` when `design_docs_v1 = ∅`. Produce
 1. **Cluster**: identify usage clusters from `code_current`
 2. **Iterate**: writer agent produces concern docs; critic agent reads only the docs and pushes back; repeat until critic finds no issues — termination is automatic, no user confirmation required
 3. **Output**: finalized docs written to `design/`
+
+## Mechanism
+
+Bootstrap runs in-skill: the bootstrap skill orchestrates the writer and critic itself by calling them as subagents sequentially via the Task tool, capturing each output, and feeding it into the next call. Bootstrap does not use the dialog log, monitor, custom append tool, registry, or any other game-time communication infrastructure — those exist only for the implementer/tester game, which has true concurrent activity. Writer and critic are inherently sequential, so direct in-skill orchestration is sufficient.
 
 ## Sub-components
 

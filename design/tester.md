@@ -11,14 +11,15 @@ Writes adversarial tests against the implementation and runs the satisfaction ch
 ## Inputs
 
 - `design_docs_v2` (by path)
-- `code_current` (implementation read-only; tester may write to its own test namespace)
-- Shared log (monitored in real-time for implementer responses)
+- `code_current` (implementation read-only; tester may write to its own test namespace — location is language-specific, see [language-specs.md](language-specs.md))
+- Shared log (entries received via the monitor command, which blocks until a new entry from the implementer arrives)
 - User instruction (when resumed after a declined stop request)
 
 ## Isolation
 
-- Implementer messages are not visible to the tester. The tester reasons only from code and design docs.
-- The tester reads and executes implementation code but does not modify it. Enforcement mechanism is project-specific.
+- Implementer message **content** is not visible to the tester. The tester reasons only from code and design docs.
+- This isolation is **hard-enforced** in the monitor: when the tester's monitor returns an implementer entry, the `content` field is replaced by the sentinel `"<redacted>"`. The other fields (`role`, `session_id`, `timestamp`) are preserved so the tester learns *that* the implementer acted — a wake signal to re-read the code — without learning *what* was said. See [monitor.md](monitor.md).
+- The tester reads and executes implementation code but does not modify it. Enforcement is language-specific, defined in [language-specs.md](language-specs.md).
 
 ## Behavior
 

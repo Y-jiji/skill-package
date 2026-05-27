@@ -1,0 +1,11 @@
+{
+  "name": "functional-harness",
+  "displayName": "Functional Harness",
+  "version": "0.1.0",
+  "description": "Drives code toward satisfying design docs via an implementer/tester game with hook-enforced isolation. Includes a /bootstrap skill that infers initial design docs from existing code.",
+  "license": "MIT",
+  "keywords": ["design-driven-development", "tdd", "code-generation", "harness", "subagent-coordination"],
+  "agents": "./agents",
+  "skills": "./skills",
+  "hooks": "./hooks/hooks.json"
+}

@@ -62,6 +62,6 @@ Handles stop requests from roles and drives the game to a terminal state. The so
 
 The shared channel through which implementer and tester exchange findings and requests within an iteration.
 
-- **Log writing**: roles write to the shared log via a common tool
-- **Monitor**: each role watches the shared log for peer activity
+- **Log writing**: roles write to the shared log by invoking the custom append tool
+- **Monitor**: each role calls the monitor command to receive the next dialog-log entry; the call blocks until an entry is available, which is the subagent's "wake" mechanism
 - **Contract**: all inter-role communication passes through the shared log; no direct message passing
