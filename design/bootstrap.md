@@ -17,7 +17,7 @@ Infers `design_docs_v1` from `code_current` when `design_docs_v1 = ∅`. Produce
 ## Process
 
 1. **Cluster**: identify usage clusters from `code_current`
-2. **Iterate**: writer agent produces concern docs; critic agent reads only the docs and pushes back; repeat until critic finds no issues
+2. **Iterate**: writer agent produces concern docs; critic agent reads only the docs and pushes back; repeat until critic finds no issues — termination is automatic, no user confirmation required
 3. **Output**: finalized docs written to `design/`
 
 ## Sub-components

@@ -8,6 +8,10 @@ implements: termination protocol
 
 Handles stop requests from roles and drives the game to a terminal state. The sole actor with direct user interaction within a game.
 
+## Trigger
+
+The termination protocol waits for both agents to return. When the requesting agent stops voluntarily and the peer agent stops because its tools are fenced, the termination protocol reads the dialog log to identify the stop-request entry, then surfaces it to the user.
+
 ## Stop request handling
 
 **Implementer stop request** — implementer is blocked or has identified a design problem:
@@ -25,5 +29,6 @@ Handles stop requests from roles and drives the game to a terminal state. The so
 ## Contracts
 
 - Terminal markers are written only after explicit user confirmation
+- On user confirmation, the terminal marker is written to the dialog log — the peer agent's monitor detects it and stops
 - Code revert on abort covers only code — design docs are left intact for user adjustment
 - Commit on close covers code, design changes, and logs
