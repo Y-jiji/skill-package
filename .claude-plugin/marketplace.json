@@ -1,0 +1,12 @@
+{
+  "name": "functional-harness-marketplace",
+  "owner": {
+    "name": "tj-yang"
+  },
+  "plugins": [
+    {
+      "name": "functional-harness",
+      "source": "./"
+    }
+  ]
+}
