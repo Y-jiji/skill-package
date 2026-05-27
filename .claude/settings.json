@@ -1,0 +1,34 @@
+{
+  "functional-harness": {
+    "tester_bash_allowlist": [
+      "^uv\\s+run\\s+--with\\s+pytest\\s+pytest(\\s|$)",
+      "^pytest(\\s|$)"
+    ],
+    "write_constraints": [
+      {
+        "name": "implementer-namespace-fence",
+        "applies_to": "implementer",
+        "file_glob": "**/*",
+        "tree_sitter_language": "rust",
+        "rule": "custom-script",
+        "rule_params": {
+          "script_path": ".claude/harness-rules/namespace_fence.py",
+          "forbidden_globs": ["tests/**", "design/**"],
+          "reason": "implementer must not modify the tester namespace (tests/) or user-owned design docs (design/)"
+        }
+      },
+      {
+        "name": "tester-namespace-fence",
+        "applies_to": "tester",
+        "file_glob": "**/*",
+        "tree_sitter_language": "rust",
+        "rule": "custom-script",
+        "rule_params": {
+          "script_path": ".claude/harness-rules/namespace_fence.py",
+          "allowed_globs": ["tests/**"],
+          "reason": "tester writes only under tests/; implementation and design/ are off-limits"
+        }
+      }
+    ]
+  }
+}
