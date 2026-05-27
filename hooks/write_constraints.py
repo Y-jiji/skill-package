@@ -1,0 +1,247 @@
+#!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "tree-sitter==0.21.3",
+#     "tree-sitter-rust==0.21.2",
+# ]
+# ///
+"""PreToolUse fence on Edit/Write — enforces structural write_constraints.
+
+Reads .claude/settings.json under `functional-harness.write_constraints` per
+harness-config-interface.md. For each constraint whose `applies_to` matches
+the calling role and whose `file_glob` matches the target file, dispatches
+to the named rule from the catalog (built-in tree-sitter rules or
+custom-script).
+
+Built-in rules:
+  - no-line-reduction-in-attribute-item   (rule_params: attribute)
+  - no-deletion-of-attribute-item         (rule_params: attribute)
+  - custom-script                         (rule_params: script_path, ...)
+
+Bundled tree-sitter grammars: rust. Adding a grammar means a new dependency
+in the PEP 723 header above plus a branch in `get_parser`.
+"""
+import fnmatch
+import json
+import os
+import subprocess
+import sys
+
+
+def project_root() -> str:
+    return os.environ.get('CLAUDE_PROJECT_DIR') or os.getcwd()
+
+
+def registry_path() -> str:
+    encoded = project_root().replace('/', '-')
+    return f"/tmp/functional-harness/PROJECT-PATH-{encoded}/game.json"
+
+
+def role_for_session(session_id: str) -> str | None:
+    try:
+        with open(registry_path()) as f:
+            return json.load(f).get('sessions', {}).get(session_id)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
+def load_constraints(root: str) -> list[dict]:
+    settings_path = os.path.join(root, '.claude', 'settings.json')
+    try:
+        with open(settings_path) as f:
+            settings = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+    return settings.get('functional-harness', {}).get('write_constraints', []) or []
+
+
+def deny(reason: str) -> None:
+    print(reason, file=sys.stderr)
+    sys.exit(2)
+
+
+def compute_post(tool: str, inp: dict, pre: str) -> str | None:
+    if tool == 'Write':
+        return inp.get('content', '')
+    if tool == 'Edit':
+        old_s = inp.get('old_string', '')
+        new_s = inp.get('new_string', '')
+        if inp.get('replace_all'):
+            return pre.replace(old_s, new_s)
+        idx = pre.find(old_s)
+        if idx < 0:
+            return None
+        return pre[:idx] + new_s + pre[idx + len(old_s):]
+    return None
+
+
+def get_parser(language: str):
+    import tree_sitter
+    if language == 'rust':
+        import tree_sitter_rust
+        return tree_sitter.Parser(tree_sitter.Language(tree_sitter_rust.language()))
+    raise ValueError(f"tree-sitter language '{language}' is not bundled in "
+                     f"this hook; bundled: rust. Add a tree_sitter_<lang> "
+                     f"dependency and a branch in get_parser to extend.")
+
+
+def attribute_item_line_counts(source: str, language: str, attribute: str) -> list[int]:
+    """Return the line count of each item carrying `attribute` (e.g. `test`).
+
+    Currently recognizes Rust `#[attr]` syntax via the rust grammar's
+    `attribute_item` nodes.
+    """
+    if language != 'rust':
+        raise ValueError(f"attribute-item rules currently support only "
+                         f"tree_sitter_language='rust'; got '{language}'")
+    parser = get_parser(language)
+    tree = parser.parse(source.encode('utf-8'))
+    src = source.encode('utf-8')
+    counts: list[int] = []
+
+    def walk(node):
+        for child in node.children:
+            if child.type in ('function_item', 'function_signature_item'):
+                attrs = [s for s in node.children if s.type == 'attribute_item'
+                         and s.start_byte < child.start_byte]
+                if any(attribute.encode('utf-8') in src[a.start_byte:a.end_byte]
+                       for a in attrs):
+                    counts.append(child.end_point[0] - child.start_point[0] + 1)
+            walk(child)
+
+    walk(tree.root_node)
+    return counts
+
+
+def run_custom_script(constraint: dict, pre: str, post: str, file_path: str, role: str) -> str | None:
+    params = constraint.get('rule_params', {})
+    script = params.get('script_path', '')
+    if not script:
+        return f"custom-script rule '{constraint.get('name', '?')}' has no script_path"
+    abs_script = os.path.join(project_root(), script)
+    if not os.path.isfile(abs_script):
+        return f"custom-script rule '{constraint.get('name', '?')}' references nonexistent script {script}"
+    payload = {
+        'file_path': file_path,
+        'role': role,
+        'pre_content': pre,
+        'post_content': post,
+        'rule_params': params,
+    }
+    try:
+        result = subprocess.run(
+            [abs_script],
+            input=json.dumps(payload),
+            capture_output=True, text=True,
+            env={**os.environ, 'CLAUDE_PROJECT_DIR': project_root()},
+            timeout=10,
+        )
+    except subprocess.TimeoutExpired:
+        return f"custom-script '{constraint.get('name', '?')}' timed out after 10s"
+    except OSError as e:
+        return f"custom-script '{constraint.get('name', '?')}' failed to invoke: {e}"
+    if result.returncode == 0:
+        return None
+    if result.returncode == 2:
+        msg = result.stderr.strip() or "(no message)"
+        return f"custom-script '{constraint.get('name', '?')}': {msg}"
+    return (f"custom-script '{constraint.get('name', '?')}' errored "
+            f"(exit {result.returncode}): {result.stderr.strip() or '(no stderr)'}")
+
+
+def apply_rule(constraint: dict, pre: str, post: str, file_path: str, role: str) -> str | None:
+    rule = constraint.get('rule', '')
+    params = constraint.get('rule_params', {})
+
+    if rule == 'no-line-reduction-in-attribute-item':
+        attr = params.get('attribute', '')
+        if not attr:
+            return f"rule '{rule}' missing required param 'attribute'"
+        language = constraint.get('tree_sitter_language', '')
+        try:
+            pre_counts = sorted(attribute_item_line_counts(pre, language, attr), reverse=True)
+            post_counts = sorted(attribute_item_line_counts(post, language, attr), reverse=True)
+        except Exception as e:
+            print(f"write_constraints: parse error in '{constraint.get('name', '?')}', "
+                  f"allowing: {e}", file=sys.stderr)
+            return None
+        for i, pc in enumerate(post_counts):
+            if i < len(pre_counts) and pc < pre_counts[i]:
+                return (f"would reduce a #[{attr}] item's line count in "
+                        f"{file_path} (pre={pre_counts[i]}, post={pc})")
+        return None
+
+    if rule == 'no-deletion-of-attribute-item':
+        attr = params.get('attribute', '')
+        if not attr:
+            return f"rule '{rule}' missing required param 'attribute'"
+        language = constraint.get('tree_sitter_language', '')
+        try:
+            pre_n = len(attribute_item_line_counts(pre, language, attr))
+            post_n = len(attribute_item_line_counts(post, language, attr))
+        except Exception as e:
+            print(f"write_constraints: parse error in '{constraint.get('name', '?')}', "
+                  f"allowing: {e}", file=sys.stderr)
+            return None
+        if post_n < pre_n:
+            return (f"would delete a #[{attr}] item from {file_path} "
+                    f"(pre {pre_n}, post {post_n})")
+        return None
+
+    if rule == 'custom-script':
+        return run_custom_script(constraint, pre, post, file_path, role)
+
+    return None  # unknown rule — silently skip; configure should validate
+
+
+def main() -> None:
+    event = json.load(sys.stdin)
+    tool = event.get('tool_name', '')
+    if tool not in ('Edit', 'Write'):
+        sys.exit(0)
+
+    inp = event.get('tool_input', {})
+    path = inp.get('file_path', '')
+    if not path:
+        sys.exit(0)
+
+    session_id = event.get('session_id', '')
+    role = role_for_session(session_id)
+    if role not in ('implementer', 'tester'):
+        sys.exit(0)
+
+    root = project_root()
+    constraints = load_constraints(root)
+    if not constraints:
+        sys.exit(0)
+
+    try:
+        rel_path = os.path.relpath(path, root)
+    except ValueError:
+        rel_path = path
+
+    try:
+        with open(path) as f:
+            pre = f.read()
+    except FileNotFoundError:
+        pre = ''
+
+    post = compute_post(tool, inp, pre)
+    if post is None:
+        sys.exit(0)
+
+    for c in constraints:
+        if c.get('applies_to') != role:
+            continue
+        glob = c.get('file_glob', '')
+        if glob and not (fnmatch.fnmatch(rel_path, glob) or fnmatch.fnmatch(path, glob)):
+            continue
+        violation = apply_rule(c, pre, post, path, role)
+        if violation:
+            deny(f"write_constraints['{c.get('name', '?')}']: {violation}")
+    sys.exit(0)
+
+
+if __name__ == '__main__':
+    main()

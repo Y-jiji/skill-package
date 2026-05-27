@@ -18,12 +18,15 @@ If empty or `design/` is missing, tell the user:
 
 Then exit. Do not proceed.
 
-# 2 — Detect project language
+# 2 — Configuration check
 
-Look at the project root:
-- `Cargo.toml` present → language is **rust**
-- `CMakeLists.txt` or `Makefile` present → language is **cpp**
-- Neither → tell the user no built-in language spec applies (currently supported: Rust, C/C++/CUDA), then exit.
+Read `.claude/settings.json` and verify a `functional-harness` namespace is present (per [harness-config-interface.md](harness-config-interface.md)). The harness has no built-in per-language behavior at runtime — the per-project config is the sole source of truth for the tester's Bash allowlist, the implementer's Bash allowlist, and any structural write constraints.
+
+If the namespace is missing, tell the user:
+
+> This project hasn't been configured for the harness. Run `/configure` to set up the tester Bash allowlist and write constraints (the configure skill offers Rust and C/C++/CUDA templates as starting points, or a custom path). Then run `/game-start` again.
+
+Then exit. Do not proceed.
 
 # 3 — Resolve registry and check for an in-flight game
 
