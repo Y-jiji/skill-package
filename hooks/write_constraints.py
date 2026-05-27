@@ -78,12 +78,26 @@ def compute_post(tool: str, inp: dict, pre: str) -> str | None:
 
 def get_parser(language: str):
     import tree_sitter
-    if language == 'rust':
-        import tree_sitter_rust
-        return tree_sitter.Parser(tree_sitter.Language(tree_sitter_rust.language()))
-    raise ValueError(f"tree-sitter language '{language}' is not bundled in "
-                     f"this hook; bundled: rust. Add a tree_sitter_<lang> "
-                     f"dependency and a branch in get_parser to extend.")
+    if language != 'rust':
+        raise ValueError(f"tree-sitter language '{language}' is not bundled in "
+                         f"this hook; bundled: rust. Add a tree_sitter_<lang> "
+                         f"dependency and a branch in get_parser to extend.")
+    import tree_sitter_rust
+    capsule = tree_sitter_rust.language()
+    # The pinned tree-sitter==0.21.3 binding: Language(capsule, name) is
+    # required, and Parser() must use set_language() — the Parser(lang)
+    # ctor accepts the arg but doesn't actually attach the language.
+    try:
+        lang_obj = tree_sitter.Language(capsule, 'rust')
+    except TypeError:
+        lang_obj = tree_sitter.Language(capsule)
+    p = tree_sitter.Parser()
+    try:
+        p.set_language(lang_obj)
+    except AttributeError:
+        # Newer API: Parser(lang) works; set_language gone.
+        p = tree_sitter.Parser(lang_obj)
+    return p
 
 
 def attribute_item_line_counts(source: str, language: str, attribute: str) -> list[int]:
