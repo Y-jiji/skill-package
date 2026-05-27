@@ -17,14 +17,45 @@ Two manifests live in `.claude-plugin/`:
 
 ## Install procedure
 
-From any directory:
+The recommended path for plugin developers (and the only safe path when iterating on this repo's own hooks) is the **staged install**, which inserts a snapshot copy between the live repo and the running plugin.
+
+### Why staged
+
+Claude Code's local-source `plugin install` uses a **live link** to the marketplace source path — when the local marketplace points at the live repo, every edit to a hook script affects the running plugin instantly. If a hook script is missing or syntactically broken during a refactor, every subsequent tool call in the active Claude session is denied (Python's "can't open file" returns exit code 2, which the PreToolUse hook contract treats as deny). That hostile mid-refactor state is hard to recover from inside the same session.
+
+Staging breaks the link: a separate snapshot directory under `~/.local/share/functional-harness-staged/` holds the version the plugin reads from, and the dev refreshes the snapshot on demand. The live repo can be in any intermediate state without affecting the running plugin.
+
+### Recommended setup
+
+One-time:
+
+```
+# Snapshot the live repo into the staging dir (and tell Claude Code to refresh).
+tools/stage-install.sh
+
+# Register the staged marketplace and install the plugin from it.
+claude plugin marketplace add "$HOME/.local/share/functional-harness-staged"
+claude plugin install functional-harness@functional-harness-marketplace
+```
+
+Subsequent dev iterations:
+
+```
+tools/stage-install.sh
+```
+
+Each run rsyncs the live repo to staging and tells Claude Code to update the installed plugin. Edits to the live repo do not affect the running plugin until you re-run the script.
+
+### Alternative: direct local install
+
+If you are using the plugin (not developing it), and you accept that edits to the source dir change the live plugin immediately, you can register the source dir directly as a marketplace:
 
 ```
 claude plugin marketplace add <path-to-this-repo>
 claude plugin install functional-harness@functional-harness-marketplace
 ```
 
-The first command registers the repo's marketplace in the user's Claude config; the second installs the single plugin it contains, with user scope, into `~/.claude/plugins/`. Once installed, the plugin is active in every Claude Code session on the system.
+This is simpler but has the live-link hazard above. The staged install is recommended.
 
 ## Implications for layout
 
