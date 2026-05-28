@@ -86,11 +86,12 @@ def test_full_stop_request_round_trip(fake_project, stage_game):
                   project_dir=fake_project)
     assert pf.returncode == 2
 
-    # peer_fence: implementer monitor call is allowed.
+    # peer_fence: implementer harness-monitor call is allowed (the only
+    # exempt invocation form — see peer_fence._is_monitor_only_invocation).
     pf_mon = run_hook("peer_fence.py",
                       {"agent_type": "functional-harness:implementer",
                        "tool_name": "Bash",
-                       "tool_input": {"command": "python3 monitor.py"}},
+                       "tool_input": {"command": "harness-monitor"}},
                       project_dir=fake_project)
     assert pf_mon.returncode == 0
 

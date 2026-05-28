@@ -39,13 +39,17 @@ def test_tester_fenced_after_implementer_stop_request(fake_project, stage_game):
     assert "implementer" in r.stderr
 
 
-def test_tester_can_still_call_monitor_after_implementer_stop(fake_project, stage_game):
+def test_python_monitor_form_now_denied(fake_project, stage_game):
+    """Historical bypass: `python3 .../monitor.py` was accepted by the old
+    substring match. With shlex-based first-program parsing, only the
+    documented `harness-monitor` shim is exempt — `python3 ANYTHING` is
+    an arbitrary interpreter invocation and not a monitor call."""
     stage_game(log_entries=[_entry("implementer", "stop-request: blocked")])
     r = run_hook("peer_fence.py",
                  _bash("functional-harness:tester",
                        "python3 /plugin/scripts/monitor.py"),
                  project_dir=fake_project)
-    assert r.returncode == 0
+    assert r.returncode == 2, r.stdout
 
 
 def test_tester_can_still_call_harness_monitor_shim_after_implementer_stop(fake_project, stage_game):

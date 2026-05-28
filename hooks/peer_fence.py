@@ -5,13 +5,31 @@ writes a terminal marker.
 
 Caller role is taken directly from `agent_type` in the hook event (Claude
 Code populates this for subagent contexts). Parent calls are not fenced.
+
+The monitor exemption is keyed on the leading program token (after any
+env-var assignments prepended by agent_env_inject), parsed via `shlex`
+with `punctuation_chars=True`. A substring match on `harness-monitor` /
+`monitor.py` would approve `harness-monitor; cat /etc/passwd` and
+similar smuggled-shell variants; the shlex-based check rejects any
+command that uses compounding (`;`, `&&`, `||`), pipes (`|`),
+redirection (`<`, `>`), subshells (`(...)`), backgrounding (`&`), or
+command substitution (`$(...)`, backticks).
 """
 import json
 import os
+import re
+import shlex
 import sys
 
 
 PEER_ROLES = {'implementer': 'tester', 'tester': 'implementer'}
+_SHELL_OPERATOR_CHARS = frozenset(';|&<>()')
+_ENV_ASSIGN_RE = re.compile(r'[A-Za-z_][A-Za-z_0-9]*=')
+# The documented entry point for "the monitor command" — the shim under
+# `bin/`. A bare `python3 .../monitor.py` is NOT accepted: `python3
+# <anything>` is an arbitrary interpreter invocation, exactly the kind of
+# escape hatch this fence is meant to close.
+_MONITOR_PROGRAM = 'harness-monitor'
 
 
 def registry_path() -> str:
@@ -68,19 +86,40 @@ def main() -> None:
     if not peer_stop_open:
         sys.exit(0)
 
-    # Peer has an open stop-request. Only the monitor call is allowed —
-    # matched by either the shim name `harness-monitor` (what agent prompts
-    # tell roles to invoke) or the script path `monitor.py` (direct
-    # invocation, used in tests).
+    # Peer has an open stop-request. Only a bare monitor call is allowed.
     tool = event.get('tool_name', '')
     inp = event.get('tool_input', {})
     if tool == 'Bash':
         cmd = inp.get('command', '')
-        if 'harness-monitor' in cmd or 'monitor.py' in cmd:
+        if _is_monitor_only_invocation(cmd):
             sys.exit(0)
     deny(f"peer ({peer}) has issued an open stop-request; only the monitor "
          f"command is allowed for {role} until the parent writes a terminal "
          f"marker. Call harness-monitor to wait for the marker.")
+
+
+def _is_monitor_only_invocation(cmd: str) -> bool:
+    """True iff `cmd` parses as a single `harness-monitor` invocation
+    with no compounding, pipes, redirection, subshells, backgrounding,
+    or command substitution. Leading env-var assignments (KEY=VALUE)
+    from agent_env_inject are skipped when finding the leading program.
+    """
+    if '$(' in cmd or '`' in cmd:
+        return False
+    lex = shlex.shlex(cmd, posix=True, punctuation_chars=True)
+    lex.whitespace_split = True
+    try:
+        tokens = list(lex)
+    except ValueError:
+        return False
+    for t in tokens:
+        if t and all(c in _SHELL_OPERATOR_CHARS for c in t):
+            return False
+    for t in tokens:
+        if _ENV_ASSIGN_RE.match(t):
+            continue
+        return t == _MONITOR_PROGRAM
+    return False
 
 
 if __name__ == '__main__':
