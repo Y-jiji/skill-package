@@ -29,6 +29,31 @@ def test_registers_tester(fake_project, stage_game):
     assert reg["sessions"]["fresh-test-session"] == "tester"
 
 
+def test_registers_namespaced_implementer(fake_project, stage_game):
+    """Claude Code passes agent_name as 'functional-harness:implementer'
+    when invoked via the plugin. The namespace prefix must be stripped
+    before checking against HARNESS_ROLES."""
+    import json
+    game = stage_game(sessions={})
+    r = run_hook("subagent_start.py",
+                 _event("functional-harness:implementer", "ns-impl-session"),
+                 project_dir=fake_project)
+    assert r.returncode == 0
+    reg = json.loads(open(game["reg_path"]).read())
+    assert reg["sessions"]["ns-impl-session"] == "implementer"
+
+
+def test_registers_namespaced_tester(fake_project, stage_game):
+    import json
+    game = stage_game(sessions={})
+    r = run_hook("subagent_start.py",
+                 _event("functional-harness:tester", "ns-test-session"),
+                 project_dir=fake_project)
+    assert r.returncode == 0
+    reg = json.loads(open(game["reg_path"]).read())
+    assert reg["sessions"]["ns-test-session"] == "tester"
+
+
 def test_ignores_unrelated_subagent(fake_project, stage_game):
     """A bootstrap-writer or general-purpose subagent isn't a harness role
     in the game-time sense; should not pollute the sessions map."""

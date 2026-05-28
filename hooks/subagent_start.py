@@ -35,8 +35,10 @@ def main() -> None:
         except OSError:
             pass
 
-    # Only register harness roles in the registry's sessions map.
-    if agent not in HARNESS_ROLES:
+    # Strip plugin namespace if present
+    # (e.g., "functional-harness:implementer" → "implementer")
+    role = agent.rsplit(':', 1)[-1]
+    if role not in HARNESS_ROLES:
         sys.exit(0)
     if not session_id:
         sys.exit(0)
@@ -48,7 +50,7 @@ def main() -> None:
             try:
                 f.seek(0)
                 reg = json.load(f)
-                reg.setdefault('sessions', {})[session_id] = agent
+                reg.setdefault('sessions', {})[session_id] = role
                 f.seek(0)
                 f.truncate()
                 json.dump(reg, f, indent=2)
