@@ -152,6 +152,55 @@ def test_streams_new_entries_as_they_appear(fake_project, stage_game, kill_monit
     assert entry["content"] == "wake up"
 
 
+def test_single_instance_lock_blocks_second_monitor(fake_project, stage_game, kill_monitors):
+    """Only one monitor per role per game. A second monitor for the same
+    role exits with code 3 and an error message rather than racing the
+    first instance's cursor writes."""
+    stage_game()
+    first = _popen(agent_type="functional-harness:implementer", project_dir=fake_project)
+    kill_monitors.append(first)
+    time.sleep(0.5)
+    assert first.poll() is None, "first monitor should still be alive"
+    # Second invocation in the same role + project should fail fast.
+    second = run_script("monitor.py",
+                        agent_type="functional-harness:implementer",
+                        project_dir=fake_project, timeout=3)
+    assert second.returncode == 3, second.stderr
+    assert "already running" in second.stderr
+
+
+def test_lock_released_after_first_monitor_exits(fake_project, stage_game, kill_monitors):
+    """Crashed / killed first monitor releases its lock; a fresh start
+    succeeds without manual cleanup."""
+    stage_game()
+    first = _popen(agent_type="functional-harness:implementer", project_dir=fake_project)
+    kill_monitors.append(first)
+    time.sleep(0.4)
+    first.kill()
+    first.wait(timeout=2)
+    # Now a new monitor should be able to acquire the lock.
+    second = _popen(agent_type="functional-harness:implementer", project_dir=fake_project)
+    kill_monitors.append(second)
+    time.sleep(0.4)
+    assert second.poll() is None, second.stderr.read()
+
+
+def test_different_roles_each_get_their_own_lock(fake_project, stage_game, kill_monitors):
+    """One implementer monitor + one tester monitor + one orchestrator
+    monitor all coexist; the lock is per-role, not per-game."""
+    stage_game()
+    procs = [
+        _popen(agent_type="functional-harness:implementer", project_dir=fake_project),
+        _popen(agent_type="functional-harness:tester", project_dir=fake_project),
+        _popen(project_dir=fake_project),  # orchestrator
+    ]
+    for p in procs:
+        kill_monitors.append(p)
+    time.sleep(0.5)
+    for p in procs:
+        assert p.poll() is None, p.stderr.read()
+
+
 def test_exits_on_terminal_marker(fake_project, stage_game, kill_monitors):
     """When the orchestrator's play-close marker streams to a role, the
     monitor delivers it and exits."""

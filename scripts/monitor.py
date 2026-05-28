@@ -7,6 +7,14 @@ in JSON form. The script runs persistently and only exits when:
   - a terminal marker (play-close / play-abort) is delivered, or
   - it is killed by TaskStop or the session ending.
 
+Single-instance per role: the script takes a non-blocking fcntl.flock on
+`<registry-dir>/monitor.<role>.lock` before entering the poll loop. A
+second monitor for the same role exits with code 3 and an error message
+rather than racing the first. The kernel releases the lock when the
+process exits (including crashes / SIGKILL), so the invariant is self-
+healing. See design/monitor.md → "Single-instance enforcement" for the
+contract and rationale.
+
 Caller role comes from AGENT_TYPE in env (injected by the agent_env_inject
 PreToolUse hook for subagent contexts). Parent calls have no AGENT_TYPE →
 caller is the orchestrator.
@@ -83,6 +91,34 @@ def project_entry(cursor_key: str, entry: dict) -> dict | None:
     return entry
 
 
+def acquire_role_lock(role: str, reg_dir: str) -> int:
+    """Take the per-role single-instance monitor lock for this game.
+
+    Exactly one monitor process per role is permitted at any time. We
+    enforce this via a non-blocking exclusive flock on a per-role lock
+    file in the registry directory; the kernel releases the lock when
+    this process exits (normal, crash, or SIGKILL), so the invariant is
+    self-healing across abnormal terminations.
+
+    Returns the open fd. The caller MUST keep it open for the lifetime
+    of the process — closing it releases the lock.
+    """
+    lock_path = os.path.join(reg_dir, f'monitor.{role}.lock')
+    fd = os.open(lock_path, os.O_CREAT | os.O_WRONLY, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        os.close(fd)
+        print(f"another monitor is already running for role {role!r}; only "
+              f"one persistent watch is permitted per game. If the existing "
+              f"watch is stuck, stop it (TaskStop on the Monitor task that "
+              f"started it) before starting a new one.", file=sys.stderr)
+        sys.exit(3)
+    os.ftruncate(fd, 0)
+    os.write(fd, f"{os.getpid()}\n".encode())
+    return fd
+
+
 def main() -> int:
     reg_path = registry_path()
     try:
@@ -94,6 +130,8 @@ def main() -> int:
 
     log_path = reg['dialog_log_path']
     cursor_key = caller_role()
+    # Held for the lifetime of this process; do not close the fd.
+    _lock_fd = acquire_role_lock(cursor_key, os.path.dirname(reg_path))
     cursor = reg.get('cursors', {}).get(cursor_key, 0)
 
     while True:

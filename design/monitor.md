@@ -7,14 +7,16 @@ implements: monitor
 
 # Monitor
 
-The monitor is a blocking command the subagent calls — a Python script invoked via Bash — to receive its next dialog-log entry. The call blocks until a new entry **the caller is allowed to see** is available, then returns the entry's full content. While blocked, the subagent is dormant; this is the sole mechanism by which a subagent receives dialog-log entries and is "woken."
+The monitor is a long-running script that streams dialog-log entries to its caller. It is designed to be invoked once per role via Claude Code's `Monitor` tool — not via Bash one call per entry. Each new entry the caller is allowed to see becomes one stdout line (one notification on the tool side). The script keeps running until a terminal marker (`play-close` / `play-abort`) is delivered or it is killed.
+
+This is the sole mechanism by which a subagent receives dialog-log entries.
 
 ## Interface
 
-- **Caller**: the subagent itself (or the parent orchestrator), via Bash
-- **Input**: none from the role — the dialog log path is resolved internally from the per-project registry, and the caller's cursor key is the role name derived from `AGENT_TYPE` in env (set by the agent_env_inject PreToolUse hook for subagent contexts; absent for parent calls, in which case cursor key is `"orchestrator"`). The caller cannot override the cursor key.
-- **Output**: the next dialog-log entry visible to the caller (per the role filter below), returned when one becomes available
-- **Contract**: the subagent receives dialog-log entries only via this command's return value; direct reads of the log are forbidden by the access-control hook
+- **Caller**: the subagent itself (or the parent orchestrator). Real games invoke the script through the `Monitor` tool with `persistent: true`; tests invoke it directly via `subprocess.run`.
+- **Input**: none from the role — the dialog log path is resolved internally from the per-project registry, and the caller's cursor key is the role name derived from `AGENT_TYPE` in env (set by the agent_env_inject PreToolUse hook for subagent contexts; absent for parent calls, in which case cursor key is `"orchestrator"`). The caller cannot override the cursor key — see `scripts/monitor.py`'s `env_value` for the ancestor-walking resolution that defeats os.environ-shaping spoofs.
+- **Output**: one JSON object per stdout line, each one a dialog-log entry the caller is allowed to see (per the role filter below). The stream ends on a terminal marker; on a `Monitor`-tool invocation each line is delivered as its own notification.
+- **Contract**: the subagent receives dialog-log entries only via this command's stdout; direct reads of the log are forbidden by the access-control hook.
 
 ## Per-role visibility filter
 
@@ -34,20 +36,33 @@ Skipped entries advance the caller's cursor without being delivered, so they are
 
 ## Subagent loop
 
-Each subagent's prompt drives a loop: call monitor → act on the returned entry (read code, run tools, append to the dialog log via the custom append tool) → call monitor again. The first monitor call begins the role's participation in the game; subsequent calls deliver peer responses.
+Each subagent's prompt starts a single persistent monitor watch via the `Monitor` tool. Subsequent dialog-log entries arrive asynchronously as notifications interleaved with the subagent's normal work; the agent acts on each (read code, run tools, `harness-append` a reply) and continues processing notifications as they arrive. The subagent does not "call monitor" once per entry — it consumes a stream from the single instance it started.
 
 ## Stop propagation
 
 When a stop-request entry appears in the dialog log:
-1. The next monitor return for both roles delivers the stop-request entry
+1. The notification fires for both roles, delivering the stop-request entry
 2. The requesting role exits its loop, having issued the stop
-3. Hooks fence all of the peer's tool calls except the monitor — the peer can still wait inside monitor for the terminal marker but cannot otherwise act
+3. Hooks fence all of the peer's other tool calls — the peer's existing monitor stream continues to deliver notifications, but it cannot Edit/Write/etc. until the terminal marker is appended
 4. The termination protocol surfaces the stop request to the user
 5. On user confirmation, a terminal marker is appended to the dialog log
-6. Both subagents' next monitor return delivers the terminal marker, and both exit their loops
+6. Both subagents' streams deliver the terminal marker; the monitor scripts exit; the subagent loops end
 
 ## Lifecycle
 
-- Each monitor invocation lives for the duration of one block-wait
-- The monitor command has no persistent process; its only cross-call state is the per-role cursor
-- Subagent loops end when the monitor returns a terminal marker
+- One monitor process per role per game; it lives for the entire game and exits when a terminal marker is delivered (or the process is killed).
+- The cross-call state is the per-role cursor in the registry, advanced after each delivered (or skipped) entry.
+- Subagent loops end when the monitor's stream ends — same event as the terminal marker arriving.
+
+## Single-instance enforcement
+
+Each game permits at most one monitor process per role at any time. This is a hard invariant because:
+
+- Two monitors racing each other's `advance_cursor` writes would silently drop or duplicate entries (the cursor is "next index to deliver"; if both increment it concurrently, one delivery is lost).
+- A new monitor started while an old one is still alive is almost always an agent bug — e.g., a role that ignored the "start once at setup" instruction and re-started the watch on every loop iteration. Without enforcement, this kind of bug compounds into hundreds of monitor processes in a single game (real failure mode observed during development).
+
+**Mechanism**: on startup, `monitor.py` takes a non-blocking exclusive `fcntl.flock` on `<registry-dir>/monitor.<role>.lock` (where `role` is `implementer` / `tester` / `orchestrator`). If the flock fails with `EWOULDBLOCK`, the script exits with code 3 and prints an error pointing the caller at `TaskStop` for the existing watch. The fd is held for the lifetime of the process; the kernel releases the lock on process exit (normal, abnormal, or SIGKILL), so a crashed monitor does **not** leave a stale lock behind — the next legitimate start succeeds without manual cleanup. The registry directory is deleted when the game ends, taking the lock file with it.
+
+**Scope**: per-game (the lock path is inside the game's registry dir, which is unique per project) and per-role. Different roles within the same game each have their own independent lock; different games never share a lock dir.
+
+**Tests** invoke monitor.py directly via subprocess. Each test fixture stages its own `fake_project` with its own registry dir, so test-local monitors don't contend for production locks; sequential tests within one project see successive lock acquisitions because the prior monitor process has exited before the next test starts. Tests that need to exercise the contention path do so explicitly by holding one monitor process alive while attempting a second.
