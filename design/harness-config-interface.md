@@ -105,7 +105,7 @@ Defers the rule evaluation to a user-supplied script. The hook invokes the scrip
   - `2` → violation; the write is denied. The script's stderr is surfaced to the role as the deny reason.
   - Anything else → treated as a script error, denied, with a generic message; the script's stderr is surfaced for debugging.
 
-The script must be self-contained: it cannot read the dialog log or registry (the access-control fence applies). It may read any other file under the project. It should be deterministic and fast; the PreToolUse hook timeout (default a few seconds) bounds execution.
+The script must be self-contained: it cannot rely on the dialog log or registry being readable (those are unreachable from the harness role's tools — see [hooks.md → Dialog log access control](hooks.md) — and a custom-script is invoked by the write_constraints hook in the role's tool-call context). It may read any other file under the project. It should be deterministic and fast; the PreToolUse hook timeout (default a few seconds) bounds execution.
 
 **Why this exists**: not every project's structural rules fit the shipped catalog. A Python project might want "implementer cannot delete a `def test_*` function"; a Go project might want "implementer cannot remove `func TestXxx`". Rather than expand the catalog forever, the config can point at a user-owned script that handles the project's specific rule. The shipped catalog covers the common cases; `custom-script` covers everything else.
 

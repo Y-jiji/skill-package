@@ -14,11 +14,11 @@ The harness ships two read primitives that share the same per-role cursor, the s
 | `harness-monitor` (`scripts/monitor.py`) | Claude Code `Monitor` tool with `persistent: true` | Long-running stream: one stdout line per visible entry, exits on terminal marker | Parent orchestrator (which benefits from each entry surfacing as its own notification while the user is interacting) |
 | `harness-park` (`scripts/park.py`) | Bash tool (single invocation per call) | Single-shot blocking wait: blocks up to its timeout for one visible entry, prints it on stdout, exits 0; on timeout exits 0 with empty stdout | Subagents (implementer / tester) — one bash call holds the entire idle inside the script's poll loop, so the agent's turn count and token cost stay bounded between dialog messages |
 
-Both primitives are the sole sanctioned read path; direct reads of the log are forbidden by the access-control hook.
+Both primitives are the sole sanctioned read path. Direct reads of the log aren't fenced by a dedicated hook — they don't have to be, because (a) the role's tool list doesn't include any tool that can read paths it has discovered (no `Grep` / `Glob`; `Read` / `Write` / `Edit` need a known `file_path` and the log lives at a random `/tmp/dialog-<random>.log`), and (b) `role_bash_allowlist` denies any Bash command the role would use to enumerate `/tmp` or `cat` a discovered path. See [hooks.md → Dialog log access control](hooks.md).
 
 ## Interface (shared)
 
-Both primitives accept no input from the caller. The dialog log path is resolved internally from the per-project registry, and the caller's cursor key is the role name derived from a per-game-mangled env var (whose name is recorded in the registry under `role_env_var_name`; see [hooks.md → Role identity propagation](hooks.md)). The role never learns the var name — the registry is access-control-fenced — so it cannot read, unset, or spoof it from inside its own command. Parent calls have no value for the mangled var → cursor key is `"orchestrator"`.
+Both primitives accept no input from the caller. The dialog log path is resolved internally from the per-project registry, and the caller's cursor key is the role name derived from a per-game-mangled env var (whose name is recorded in the registry under `role_env_var_name`; see [hooks.md → Role identity propagation](hooks.md)). The role never learns the var name — the registry isn't reachable from any tool the role has (see [hooks.md → Dialog log access control](hooks.md)) — so it cannot read, unset, or spoof it from inside its own command. Parent calls have no value for the mangled var → cursor key is `"orchestrator"`.
 
 ### `harness-monitor` (stream)
 

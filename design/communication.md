@@ -20,7 +20,7 @@ A per-project registry file at the deterministic path
 
 records the current game's runtime state. `<encoded-project-root>` is the absolute project root with `/` replaced by `-` (so `/home/foo/proj` becomes `-home-foo-proj`).
 
-The registry exists so the custom append tool and the access-control hook can resolve the dialog log path without the role having to supply it. The registry itself is also fenced from roles — roles cannot read or write it through any tool. Only the append tool, the monitor, the access-control hook, the start hook, and `/game-start` read or write it.
+The registry exists so the harness scripts (`harness-append`, `harness-park`, `harness-monitor`, `harness-marker-write`) can resolve the dialog log path and the per-game-mangled role env var name without the role having to supply them. The registry itself is unreachable from a harness role: the role's tool list doesn't include any tool that can usefully read it, and `role_bash_allowlist` denies any Bash command the role would use to `cat` / `find` / `grep` it. See [hooks.md → Dialog log access control](hooks.md) for the full layered argument. Only the harness scripts and `/game-start` read or write it.
 
 ### Schema
 
