@@ -8,7 +8,15 @@ A role may exit its loop only if at least one of:
 If neither holds, return `{"decision": "block", "reason": ...}` so the
 subagent is forced to continue (its next monitor call will block until the
 marker appears or the peer returns to running).
+
+Fail-open policy: any abnormality during the precondition check — missing
+registry, unreadable dialog log, missing dialog_log_path, unexpected
+exceptions — allows the stop. The block path is reserved for the case
+where everything reads cleanly AND the forbidden state is unambiguously
+detected. Better to let a subagent exit a broken game than to trap it in
+an unrecoverable retry loop because some state file is wrong.
 """
+import fcntl
 import json
 import os
 import sys
@@ -27,82 +35,95 @@ def read_entries(log_path: str) -> list:
     try:
         with open(log_path) as f:
             return [json.loads(ln) for ln in f if ln.strip()]
-    except (FileNotFoundError, json.JSONDecodeError):
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
         return []
 
 
-def main() -> None:
-    event = json.load(sys.stdin)
-    session_id = event.get('session_id', '')
-
-    reg_path = registry_path()
+def mark_terminated(reg_path: str, role: str) -> None:
     try:
-        with open(reg_path) as f:
-            reg = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        sys.exit(0)
+        with open(reg_path, 'r+') as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                f.seek(0)
+                r = json.load(f)
+                r.setdefault('terminated', {})[role] = True
+                f.seek(0)
+                f.truncate()
+                json.dump(r, f, indent=2)
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    except OSError:
+        pass
 
-    role = reg.get('sessions', {}).get(session_id)
-    if role not in PEER_ROLES:
-        sys.exit(0)
-    peer = PEER_ROLES[role]
 
-    entries = read_entries(reg.get('dialog_log_path', ''))
-
-    has_marker = any(e.get('content') in ('play-close', 'play-abort')
-                     for e in entries)
-    peer_terminated = reg.get('terminated', {}).get(peer, False)
-
-    # Condition (1): peer terminated AND terminal marker present
-    if peer_terminated and has_marker:
-        # Mark self terminated, allow
-        try:
-            import fcntl
-            with open(reg_path, 'r+') as f:
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                try:
-                    f.seek(0)
-                    r = json.load(f)
-                    r.setdefault('terminated', {})[role] = True
-                    f.seek(0)
-                    f.truncate()
-                    json.dump(r, f, indent=2)
-                finally:
-                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-        except OSError:
-            pass
-        sys.exit(0)
-
-    # Condition (2): peer is still running
-    if not peer_terminated:
-        try:
-            import fcntl
-            with open(reg_path, 'r+') as f:
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                try:
-                    f.seek(0)
-                    r = json.load(f)
-                    r.setdefault('terminated', {})[role] = True
-                    f.seek(0)
-                    f.truncate()
-                    json.dump(r, f, indent=2)
-                finally:
-                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-        except OSError:
-            pass
-        sys.exit(0)
-
-    # Forbidden state: peer already exited, no marker yet
-    print(json.dumps({
-        "decision": "block",
-        "reason": (
-            f"You cannot terminate yet: your peer ({peer}) has already "
-            f"exited but the parent has not written a terminal marker. "
-            f"Call the monitor (python monitor.py) to block until the "
-            f"marker (or a user instruction) arrives, then proceed."
-        ),
-    }))
+def allow_stop(role_or_none: str, reg_path: str) -> None:
+    """Allow the stop, recording termination if we know the role."""
+    if role_or_none:
+        mark_terminated(reg_path, role_or_none)
     sys.exit(0)
+
+
+def main() -> None:
+    # Top-level try: any unexpected exception fails open (allows stop).
+    try:
+        event = json.load(sys.stdin)
+        session_id = event.get('session_id', '')
+
+        reg_path = registry_path()
+
+        # Abnormality: no registry → allow.
+        try:
+            with open(reg_path) as f:
+                reg = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            sys.exit(0)
+
+        role = reg.get('sessions', {}).get(session_id)
+        # Abnormality: this subagent isn't a registered harness role → allow.
+        if role not in PEER_ROLES:
+            sys.exit(0)
+        peer = PEER_ROLES[role]
+
+        # Abnormality: dialog log path missing from registry → allow.
+        log_path = reg.get('dialog_log_path', '')
+        if not log_path:
+            allow_stop(role, reg_path)
+
+        # Abnormality: dialog log missing from disk → allow.
+        if not os.path.exists(log_path):
+            allow_stop(role, reg_path)
+
+        entries = read_entries(log_path)
+
+        has_marker = any(e.get('content') in ('play-close', 'play-abort')
+                         for e in entries)
+        peer_terminated = reg.get('terminated', {}).get(peer, False)
+
+        # Condition (1): peer terminated AND terminal marker present → allow.
+        if peer_terminated and has_marker:
+            allow_stop(role, reg_path)
+
+        # Condition (2): peer is still running → allow.
+        if not peer_terminated:
+            allow_stop(role, reg_path)
+
+        # Only block in the clean-but-forbidden state: peer marked terminated
+        # AND no marker yet AND everything else read fine.
+        print(json.dumps({
+            "decision": "block",
+            "reason": (
+                f"You cannot terminate yet: your peer ({peer}) has already "
+                f"exited but the parent has not written a terminal marker. "
+                f"Call harness-monitor to block until the marker (or a user "
+                f"instruction) arrives, then proceed."
+            ),
+        }))
+        sys.exit(0)
+
+    except Exception as e:
+        # Anything unexpected → fail open. Log to stderr for debugging.
+        print(f"subagent_stop: abnormality, allowing stop: {e}", file=sys.stderr)
+        sys.exit(0)
 
 
 if __name__ == '__main__':

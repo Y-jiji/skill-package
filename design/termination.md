@@ -44,6 +44,10 @@ A SubagentStop hook enforces these preconditions. When the subagent's session is
 - If condition (1) or (2) holds: the hook permits the stop.
 - Otherwise (peer exited, no terminal marker): the hook returns `{"decision": "block", "reason": "..."}`, forcing the subagent to continue its loop. The subagent's next monitor call blocks until either a terminal marker is appended or the peer returns to running, at which point the next stop attempt succeeds.
 
+### Fail-open on abnormality
+
+The hook is **fail-open**: any abnormality during the precondition check — missing registry, missing or unreadable dialog log, missing `dialog_log_path` field, malformed stdin event, unhandled exception — allows the stop. Block is reserved for the case where every read succeeds AND the forbidden state (peer terminated, no marker) is unambiguously detected. The rationale: a broken game should not trap a subagent in an unrecoverable retry loop. If state is inconsistent enough that the precondition check can't run cleanly, let the subagent exit; the parent can recover or restart from cleaner state.
+
 ## Contracts
 
 - Terminal markers are written only after explicit user confirmation, by the parent session via the marker-write mechanism

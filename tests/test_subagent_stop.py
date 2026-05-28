@@ -64,3 +64,59 @@ def test_no_registry_passes_through(fake_project):
     r = run_hook("subagent_stop.py", _stop_event("any"),
                  project_dir=fake_project)
     assert r.returncode == 0
+
+
+def test_missing_dialog_log_allows(fake_project, stage_game, tmp_path):
+    """Abnormality: registry says dialog_log_path is something that doesn't
+    exist on disk. Even in the otherwise-forbidden state (peer terminated,
+    no marker), the hook should fail open and allow the stop."""
+    import json as _json
+    stage_game(
+        log_entries=[_entry("tester", "stop-request: x")],
+        terminated={"tester": True},
+    )
+    # Point the registry at a nonexistent log
+    reg_path = f"/tmp/functional-harness/PROJECT-PATH-{str(fake_project).replace('/', '-')}/game.json"
+    with open(reg_path) as f:
+        reg = _json.load(f)
+    reg["dialog_log_path"] = "/tmp/does-not-exist-anywhere.log"
+    with open(reg_path, "w") as f:
+        _json.dump(reg, f)
+    r = run_hook("subagent_stop.py", _stop_event("sid-impl"),
+                 project_dir=fake_project)
+    assert r.returncode == 0
+    assert "decision" not in r.stdout  # no block emitted
+
+
+def test_empty_dialog_log_path_allows(fake_project, stage_game):
+    """Abnormality: registry has empty dialog_log_path — allow stop."""
+    import json as _json
+    stage_game(
+        log_entries=[_entry("tester", "stop-request: x")],
+        terminated={"tester": True},
+    )
+    reg_path = f"/tmp/functional-harness/PROJECT-PATH-{str(fake_project).replace('/', '-')}/game.json"
+    with open(reg_path) as f:
+        reg = _json.load(f)
+    reg["dialog_log_path"] = ""
+    with open(reg_path, "w") as f:
+        _json.dump(reg, f)
+    r = run_hook("subagent_stop.py", _stop_event("sid-impl"),
+                 project_dir=fake_project)
+    assert r.returncode == 0
+    assert "decision" not in r.stdout
+
+
+def test_malformed_event_allows(fake_project, stage_game):
+    """Abnormality: stdin isn't valid JSON — the top-level catch allows."""
+    import subprocess
+    from conftest import HOOKS_DIR
+    r = subprocess.run(
+        ["python3", str(HOOKS_DIR / "subagent_stop.py")],
+        input="not json at all",
+        capture_output=True, text=True,
+        env={**__import__('os').environ, 'CLAUDE_PROJECT_DIR': str(fake_project)},
+        timeout=5,
+    )
+    assert r.returncode == 0
+    assert "decision" not in r.stdout
