@@ -26,11 +26,12 @@ The registry exists so the custom append tool and the access-control hook can re
 
 - `dialog_log_path` — absolute path to the dialog log (the random `/tmp` location). Written once at game creation.
 - `project_root` — absolute project root path. Written once at game creation. Used by readers to sanity-check the registry matches the project they are running in.
-- `sessions` — map from subagent session id to role name. Populated incrementally by the start hook as each role's session begins. The reverse direction (role → session id) is derivable from this map and does not need its own field.
-- `parent_session_id` — the Claude Code session id of the parent `/game-start` orchestrator. Set when `/game-start` creates (or resumes) the game. The marker-write script checks the invoking session id against this field to enforce parent-only access.
 - `cursors` — map from cursor key to the index of the next dialog-log entry that key should be delivered. Updated by the monitor on each call so the next invocation (a fresh process) knows where to resume. Keys are role names (`"implementer"`, `"tester"`) plus `"orchestrator"` for the parent `/game-start` watch loop.
+- `terminated` — optional map from role name to bool, set by SubagentStop when a role's exit is permitted; consulted by SubagentStop on the peer to decide whether to block.
 
 Game-in-flight vs closed vs aborted is not in the registry — terminal markers in the log are the sole source of game state per `solver-game.md`.
+
+Role identity is not in the registry either — it comes from the `agent_type` field of each hook event (Claude Code populates this for subagent contexts) and is propagated to Bash subprocesses via the agent-env-inject hook described in [hooks.md](hooks.md). The orchestrator is identified by the *absence* of `agent_type`.
 
 ## Sub-components
 

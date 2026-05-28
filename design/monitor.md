@@ -12,7 +12,7 @@ The monitor is a blocking command the subagent calls — a Python script invoked
 ## Interface
 
 - **Caller**: the subagent itself (or the parent orchestrator), via Bash
-- **Input**: none from the role — the dialog log path and the caller's cursor key are resolved internally from the per-project registry, looked up by the caller's `CLAUDE_SESSION_ID`. The cursor key is **not** a script argument; the caller cannot override it to peek at another role's view.
+- **Input**: none from the role — the dialog log path is resolved internally from the per-project registry, and the caller's cursor key is the role name derived from `AGENT_TYPE` in env (set by the agent_env_inject PreToolUse hook for subagent contexts; absent for parent calls, in which case cursor key is `"orchestrator"`). The caller cannot override the cursor key.
 - **Output**: the next dialog-log entry visible to the caller (per the role filter below), returned when one becomes available
 - **Contract**: the subagent receives dialog-log entries only via this command's return value; direct reads of the log are forbidden by the access-control hook
 

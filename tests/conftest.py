@@ -1,8 +1,17 @@
 """Shared pytest fixtures and helpers for harness component tests.
 
-Each test stages a per-project registry under /tmp/functional-harness/
-PROJECT-PATH-<encoded-tmp_path>/ and tears it down on teardown. Scripts are
-invoked via subprocess to match real usage (env vars + stdin JSON).
+Each test stages a per-project registry under
+`/tmp/functional-harness/PROJECT-PATH-<encoded>/` and tears it down on
+teardown. Hooks and scripts are invoked via subprocess to match real usage.
+
+Role identity model (post-refactor): every hook receives `agent_type` in its
+stdin event when the call originates from a subagent; absent = parent. The
+agent_env_inject PreToolUse hook propagates this to Bash subprocesses by
+prepending `AGENT_TYPE=<t> AGENT_ID=<i>` to the command, so scripts read
+the role from their own env.
+
+Helpers here let a test (a) inject `agent_type` into a hook event JSON and
+(b) set AGENT_TYPE/AGENT_ID env when invoking a script directly.
 """
 import json
 import os
@@ -28,8 +37,6 @@ def registry_dir_for(project: Path) -> Path:
 
 @pytest.fixture
 def fake_project(tmp_path):
-    """A fresh project root with `.claude/` already created; the matching
-    `/tmp/functional-harness/PROJECT-PATH-...` directory is removed in teardown."""
     project = tmp_path / "proj"
     project.mkdir()
     (project / ".claude").mkdir()
@@ -39,20 +46,13 @@ def fake_project(tmp_path):
 
 @pytest.fixture
 def stage_game(fake_project, tmp_path):
-    """Returns a function that writes the per-project registry and (optionally)
-    seeds the dialog log with entries.
+    """Write a registry; optionally seed dialog log entries.
 
-    Default sessions: implementer=sid-impl, tester=sid-test, parent=parent-X.
+    The post-refactor registry has just `dialog_log_path`, `project_root`,
+    `cursors`, and optionally `terminated`. No `sessions`, no
+    `parent_session_id` — role identity comes from agent_type at hook time.
     """
-    def _stage(*, parent_session_id="parent-X",
-               sessions=None,
-               log_entries=None,
-               cursors=None,
-               terminated=None):
-        sessions = sessions if sessions is not None else {
-            "sid-impl": "implementer",
-            "sid-test": "tester",
-        }
+    def _stage(*, log_entries=None, cursors=None, terminated=None):
         log_path = tmp_path / "dialog.log"
         log_path.write_text("")
         if log_entries:
@@ -63,8 +63,6 @@ def stage_game(fake_project, tmp_path):
         reg = {
             "dialog_log_path": str(log_path),
             "project_root": str(fake_project),
-            "parent_session_id": parent_session_id,
-            "sessions": sessions,
             "cursors": cursors or {},
         }
         if terminated is not None:
@@ -76,21 +74,13 @@ def stage_game(fake_project, tmp_path):
         with open(reg_path, 'w') as f:
             json.dump(reg, f, indent=2)
 
-        return {
-            "reg_path": str(reg_path),
-            "log_path": str(log_path),
-            "registry": reg,
-            "parent_session_id": parent_session_id,
-            "sessions": sessions,
-        }
+        return {"reg_path": str(reg_path), "log_path": str(log_path), "registry": reg}
 
     return _stage
 
 
 @pytest.fixture
 def settings_writer(fake_project):
-    """Returns a function that writes the project's `.claude/settings.json`
-    `functional-harness` namespace."""
     def _write(**fh_keys):
         settings = {"functional-harness": fh_keys}
         path = fake_project / ".claude" / "settings.json"
@@ -99,15 +89,18 @@ def settings_writer(fake_project):
     return _write
 
 
-def _run(cmd, *, stdin="", session_id="", project_dir="", extra_env=None, timeout=10):
+def _run(cmd, *, stdin="", project_dir="", agent_type="", agent_id="",
+         extra_env=None, timeout=10):
     env = os.environ.copy()
-    # Wipe any inherited values so tests don't bleed across projects.
-    env.pop('CLAUDE_SESSION_ID', None)
-    env.pop('CLAUDE_PROJECT_DIR', None)
-    if session_id:
-        env['CLAUDE_SESSION_ID'] = session_id
+    # Wipe inherited harness vars so tests don't bleed.
+    for v in ('AGENT_TYPE', 'AGENT_ID', 'CLAUDE_SESSION_ID', 'CLAUDE_PROJECT_DIR'):
+        env.pop(v, None)
     if project_dir:
         env['CLAUDE_PROJECT_DIR'] = str(project_dir)
+    if agent_type:
+        env['AGENT_TYPE'] = agent_type
+    if agent_id:
+        env['AGENT_ID'] = agent_id
     if extra_env:
         env.update(extra_env)
     return subprocess.run(cmd, input=stdin, capture_output=True, text=True,
@@ -123,10 +116,18 @@ def run_uv_script(script: Path, *, args=None, **kw):
 
 
 def run_hook(name: str, event: dict, **kw):
-    """Invoke a hook script with PreToolUse-style event JSON on stdin."""
+    """Invoke a hook script with PreToolUse-style event JSON on stdin.
+
+    Pass `agent_type=...` via the `event` dict to simulate a subagent call;
+    omit it (or pass empty) to simulate a parent call.
+    """
     return run_python_script(HOOKS_DIR / name, stdin=json.dumps(event), **kw)
 
 
 def run_script(name: str, *, args=None, **kw):
-    """Invoke a runtime script (scripts/<name>)."""
+    """Invoke a runtime script (scripts/<name>).
+
+    Pass `agent_type=...` to set AGENT_TYPE in env (subagent call);
+    omit it to simulate a parent call.
+    """
     return run_python_script(SCRIPTS_DIR / name, args=args, **kw)

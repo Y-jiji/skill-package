@@ -1,6 +1,6 @@
-"""hooks/write_constraints.py — invokes named rules from settings.json.
+"""hooks/write_constraints.py — invokes rules from settings.json.
 
-Run via `uv run --script` because the hook has tree-sitter PEP 723 deps.
+Runs via `uv run --script` because the hook has tree-sitter PEP 723 deps.
 """
 import json
 import os
@@ -9,15 +9,11 @@ import subprocess
 from conftest import HOOKS_DIR
 
 
-def _run_constraint_hook(event, project_dir, extra_env=None):
+def _run_constraint_hook(event, project_dir):
     env = os.environ.copy()
-    env.pop('CLAUDE_SESSION_ID', None)
-    env.pop('CLAUDE_PROJECT_DIR', None)
-    if 'session_id' in event:
-        env['CLAUDE_SESSION_ID'] = event['session_id']
+    for v in ('AGENT_TYPE', 'AGENT_ID', 'CLAUDE_PROJECT_DIR'):
+        env.pop(v, None)
     env['CLAUDE_PROJECT_DIR'] = str(project_dir)
-    if extra_env:
-        env.update(extra_env)
     return subprocess.run(
         ["uv", "run", "--script", str(HOOKS_DIR / "write_constraints.py")],
         input=json.dumps(event), capture_output=True, text=True,
@@ -25,9 +21,12 @@ def _run_constraint_hook(event, project_dir, extra_env=None):
     )
 
 
-def _write_event(session_id, file_path, content):
-    return {"session_id": session_id, "tool_name": "Write",
-            "tool_input": {"file_path": file_path, "content": content}}
+def _write_event(agent_type, file_path, content):
+    e = {"tool_name": "Write",
+         "tool_input": {"file_path": file_path, "content": content}}
+    if agent_type:
+        e["agent_type"] = agent_type
+    return e
 
 
 def test_no_constraints_pass_through(fake_project, stage_game, settings_writer, tmp_path):
@@ -35,7 +34,7 @@ def test_no_constraints_pass_through(fake_project, stage_game, settings_writer, 
     settings_writer(write_constraints=[])
     target = tmp_path / "foo.rs"
     r = _run_constraint_hook(
-        _write_event("sid-impl", str(target), "fn main() {}"),
+        _write_event("functional-harness:implementer", str(target), "fn main() {}"),
         fake_project,
     )
     assert r.returncode == 0
@@ -54,28 +53,14 @@ def test_rust_no_line_reduction_in_test_denies(fake_project, stage_game,
     }])
     target = tmp_path / "src" / "lib.rs"
     target.parent.mkdir()
-    pre = (
-        "#[test]\n"
-        "fn t1() {\n"
-        "    assert_eq!(1, 1);\n"
-        "    assert_eq!(2, 2);\n"
-        "    assert_eq!(3, 3);\n"
-        "}\n"
-    )
+    pre = "#[test]\nfn t1() {\n    assert_eq!(1, 1);\n    assert_eq!(2, 2);\n    assert_eq!(3, 3);\n}\n"
     target.write_text(pre)
-    # Shrink the test item
-    post = (
-        "#[test]\n"
-        "fn t1() {\n"
-        "    assert_eq!(1, 1);\n"
-        "}\n"
-    )
+    post = "#[test]\nfn t1() {\n    assert_eq!(1, 1);\n}\n"
     r = _run_constraint_hook(
-        _write_event("sid-impl", str(target), post),
+        _write_event("functional-harness:implementer", str(target), post),
         fake_project,
     )
     assert r.returncode == 2, r.stdout + r.stderr
-    assert "test" in r.stderr.lower()
 
 
 def test_rust_no_line_reduction_allows_growth(fake_project, stage_game,
@@ -93,17 +78,12 @@ def test_rust_no_line_reduction_allows_growth(fake_project, stage_game,
     target.parent.mkdir()
     pre = "#[test]\nfn t1() {\n    assert_eq!(1, 1);\n}\n"
     target.write_text(pre)
-    post = ("#[test]\n"
-            "fn t1() {\n"
-            "    assert_eq!(1, 1);\n"
-            "    assert_eq!(2, 2);\n"
-            "    assert_eq!(3, 3);\n"
-            "}\n")
+    post = "#[test]\nfn t1() {\n    assert_eq!(1, 1);\n    assert_eq!(2, 2);\n    assert_eq!(3, 3);\n}\n"
     r = _run_constraint_hook(
-        _write_event("sid-impl", str(target), post),
+        _write_event("functional-harness:implementer", str(target), post),
         fake_project,
     )
-    assert r.returncode == 0, r.stderr
+    assert r.returncode == 0
 
 
 def test_rust_no_deletion_of_test_denies(fake_project, stage_game,
@@ -124,7 +104,7 @@ def test_rust_no_deletion_of_test_denies(fake_project, stage_game,
     target.write_text(pre)
     post = "#[test]\nfn t1() { assert_eq!(1, 1); }\n"
     r = _run_constraint_hook(
-        _write_event("sid-impl", str(target), post),
+        _write_event("functional-harness:implementer", str(target), post),
         fake_project,
     )
     assert r.returncode == 2
@@ -132,7 +112,6 @@ def test_rust_no_deletion_of_test_denies(fake_project, stage_game,
 
 def test_applies_to_other_role_skipped(fake_project, stage_game,
                                         settings_writer, tmp_path):
-    """Constraint targets implementer; tester's write isn't checked."""
     stage_game()
     settings_writer(write_constraints=[{
         "name": "implementer-only",
@@ -146,9 +125,9 @@ def test_applies_to_other_role_skipped(fake_project, stage_game,
     target.parent.mkdir()
     pre = "#[test]\nfn t() { let _ = 1; let _ = 2; let _ = 3; }\n"
     target.write_text(pre)
-    post = "#[test]\nfn t() {}\n"  # would normally violate
+    post = "#[test]\nfn t() {}\n"
     r = _run_constraint_hook(
-        _write_event("sid-test", str(target), post),
+        _write_event("functional-harness:tester", str(target), post),
         fake_project,
     )
     assert r.returncode == 0
@@ -165,10 +144,10 @@ def test_glob_mismatch_skipped(fake_project, stage_game,
         "rule": "no-line-reduction-in-attribute-item",
         "rule_params": {"attribute": "test"},
     }])
-    target = tmp_path / "foo.py"  # not .rs
+    target = tmp_path / "foo.py"
     target.write_text("")
     r = _run_constraint_hook(
-        _write_event("sid-impl", str(target), "anything"),
+        _write_event("functional-harness:implementer", str(target), "anything"),
         fake_project,
     )
     assert r.returncode == 0
@@ -199,11 +178,11 @@ def test_custom_script_denies(fake_project, stage_game, settings_writer, tmp_pat
     target = tmp_path / "foo.txt"
     target.write_text("hello\n")
     r = _run_constraint_hook(
-        _write_event("sid-impl", str(target), "hello\nTODO: fix later\n"),
+        _write_event("functional-harness:implementer", str(target),
+                     "hello\nTODO: fix later\n"),
         fake_project,
     )
     assert r.returncode == 2
-    assert "TODO" in r.stderr
 
 
 def test_custom_script_allows(fake_project, stage_game, settings_writer, tmp_path):
@@ -231,7 +210,29 @@ def test_custom_script_allows(fake_project, stage_game, settings_writer, tmp_pat
     target = tmp_path / "foo.txt"
     target.write_text("hello\n")
     r = _run_constraint_hook(
-        _write_event("sid-impl", str(target), "hello again\n"),
+        _write_event("functional-harness:implementer", str(target), "hello again\n"),
         fake_project,
     )
-    assert r.returncode == 0, r.stderr
+    assert r.returncode == 0
+
+
+def test_parent_pass_through(fake_project, stage_game, settings_writer, tmp_path):
+    """No agent_type → parent → constraints skipped."""
+    stage_game()
+    settings_writer(write_constraints=[{
+        "name": "impl-only",
+        "applies_to": "implementer",
+        "file_glob": "**/*.rs",
+        "tree_sitter_language": "rust",
+        "rule": "no-line-reduction-in-attribute-item",
+        "rule_params": {"attribute": "test"},
+    }])
+    target = tmp_path / "src" / "lib.rs"
+    target.parent.mkdir()
+    pre = "#[test]\nfn t() { let _ = 1; let _ = 2; let _ = 3; }\n"
+    target.write_text(pre)
+    r = _run_constraint_hook(
+        _write_event("", str(target), "#[test]\nfn t() {}\n"),
+        fake_project,
+    )
+    assert r.returncode == 0

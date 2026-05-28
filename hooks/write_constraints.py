@@ -29,21 +29,20 @@ import subprocess
 import sys
 
 
+HARNESS_ROLES = {'implementer', 'tester'}
+
+
 def project_root() -> str:
     return os.environ.get('CLAUDE_PROJECT_DIR') or os.getcwd()
 
 
-def registry_path() -> str:
-    encoded = project_root().replace('/', '-')
-    return f"/tmp/functional-harness/PROJECT-PATH-{encoded}/game.json"
-
-
-def role_for_session(session_id: str) -> str | None:
-    try:
-        with open(registry_path()) as f:
-            return json.load(f).get('sessions', {}).get(session_id)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return None
+def caller_role(event: dict) -> str:
+    """orchestrator (parent) when agent_type absent; otherwise the role
+    name from agent_type with plugin namespace stripped."""
+    at = event.get('agent_type') or ''
+    if not at:
+        return 'orchestrator'
+    return at.rsplit(':', 1)[-1]
 
 
 def load_constraints(root: str) -> list[dict]:
@@ -210,7 +209,10 @@ def apply_rule(constraint: dict, pre: str, post: str, file_path: str, role: str)
 
 
 def main() -> None:
-    event = json.load(sys.stdin)
+    try:
+        event = json.load(sys.stdin)
+    except json.JSONDecodeError:
+        sys.exit(0)
     tool = event.get('tool_name', '')
     if tool not in ('Edit', 'Write'):
         sys.exit(0)
@@ -220,9 +222,8 @@ def main() -> None:
     if not path:
         sys.exit(0)
 
-    session_id = event.get('session_id', '')
-    role = role_for_session(session_id)
-    if role not in ('implementer', 'tester'):
+    role = caller_role(event)
+    if role not in HARNESS_ROLES:
         sys.exit(0)
 
     root = project_root()

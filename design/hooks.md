@@ -7,15 +7,27 @@ implements: hook enforcement
 
 # Hook enforcement
 
-Implements access control for the dialog log and terminal marker protection via Claude Code's PreToolUse hook system.
+Implements role identification and access control via Claude Code's PreToolUse / SubagentStop hook system.
+
+## Role identity propagation (`agent_env_inject`)
+
+Every PreToolUse hook event from Claude Code includes `agent_type` (and `agent_id`) when the call originates inside a subagent context, and omits those fields for parent / top-level calls. This is the sole source of role identity in the harness; the registry no longer carries session-id-to-role mapping.
+
+To make role identity available to harness scripts the Bash tool invokes, a PreToolUse(Bash) hook (`agent_env_inject.py`) rewrites the command via `hookSpecificOutput.updatedInput`:
+
+    AGENT_TYPE=<agent_type> AGENT_ID=<agent_id> <original command>
+
+This bash per-command env-var prefix sets `AGENT_TYPE` and `AGENT_ID` for the single command being run. The harness scripts (`append.py`, `monitor.py`, `marker_write.py`) read these from `os.environ` to determine their caller's role (the role name is `agent_type` with the plugin namespace stripped, e.g. `functional-harness:implementer` → `implementer`). For parent calls (no `agent_type` in the hook event) the hook makes no rewrite and the script sees no `AGENT_TYPE`, treating the caller as the orchestrator.
+
+The other hooks (access_control, peer_fence, marker_fence, role_bash_allowlist, write_constraints, subagent_stop) read `agent_type` from their own stdin directly — they don't depend on the env-inject hook's rewrite.
 
 ## Dialog log access control
 
-Enforces that roles interact with the dialog log only through the custom append tool (write) and via being awoken by the monitor (read) — never directly through any other tool. The same constraint applies to the parent `/game-start` orchestrator session: it uses the monitor command (under cursor key `"orchestrator"`) and the marker-write / custom append scripts, never any direct read or write to the log path.
+Enforces that harness role subagents interact with the dialog log only through the custom append tool (write) and via the monitor command (read) — never directly through any other tool. The parent orchestrator is exempt (no `agent_type` → not a role).
 
-- **Mechanism**: PreToolUse hook denies any tool call that could touch the dialog log or the registry. This covers Read/Write/Edit on either path, Bash commands that reference either path or scan their containing directories, and direct invocation of the monitor binary by a role.
+- **Mechanism**: PreToolUse hook identifies the caller from `agent_type`. If the role is implementer or tester, denies any tool call whose target touches the dialog log or registry paths (Read/Write/Edit on the path, Bash command referencing the path).
 - **Path resolution**: the hook reads the per-project registry file (`/tmp/functional-harness/PROJECT-PATH-<encoded-project-root>/game.json`) to learn the random dialog log path. The role never receives either path.
-- **Bypass**: the custom append tool — a Python script invoked via Bash with content as its sole argument — is the one Bash invocation form the fence allows to touch the log. The script reads the registry to find the log path; the role never passes it. The monitor reads the log from a separate process that runs outside any role's tool surface.
+- **Bypass**: the custom append tool — a Python script invoked via Bash with content as its sole argument — is the one Bash invocation form the fence allows to touch the log. The script reads the registry to find the log path; the role never passes it.
 
 ## Peer fencing on stop request
 
@@ -31,15 +43,9 @@ A SubagentStop hook enforces the termination preconditions defined in `terminati
 
 ## Marker fence
 
-Prevents roles from writing terminal markers via Edit or Write.
+Prevents harness role subagents from writing terminal markers via Edit or Write.
 
-- **Mechanism**: PreToolUse(Edit|Write) hook denies any edit whose post-edit content contains a marker line the pre-edit text did not
-- **Bypass**: a marker-write script (analogous to the custom append tool — a Python script invoked via Bash, resolving the log path from the registry) is the one Bash invocation form this fence permits to introduce a marker line. The termination protocol invokes it from the parent `/game-start` session after user confirmation.
-- **Caller restriction**: the marker-write script is parent-only. It checks that the invoking Claude Code session id matches the registry's `parent_session_id` and refuses otherwise, so a subagent (whose session id is in `sessions` but not equal to `parent_session_id`) cannot trigger termination by calling the script.
+- **Mechanism**: PreToolUse(Edit|Write) hook checks `agent_type` from the event. If the caller is a harness role and the post-edit content introduces a marker string (`play-close` / `play-abort`) that was not in the pre-edit text, deny. Parent calls (no `agent_type`) pass through.
+- **Bypass**: a marker-write script (analogous to the custom append tool — a Python script invoked via Bash, resolving the log path from the registry) is how the parent writes markers. The script uses direct file append, not Edit/Write, so this fence does not see those appends.
+- **Caller restriction**: the marker-write script is parent-only. It refuses if `AGENT_TYPE` is set in its env. `AGENT_TYPE` is injected only by the agent_env_inject hook for subagent-context Bash calls; parent's Bash subprocesses have no `AGENT_TYPE`. Presence ≡ caller is a subagent → refuse.
 
-## Start hook
-
-Fires when a subagent session starts.
-
-- **Action**: registers the session id and role to the dialog log via the custom append tool
-- **Contract**: fires before any iteration begins; every role's entry into a game is recorded

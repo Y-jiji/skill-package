@@ -2,6 +2,16 @@
   "hooks": {
     "PreToolUse": [
       {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/agent_env_inject.py",
+            "timeout": 5
+          }
+        ]
+      },
+      {
         "matcher": "Read|Write|Edit|NotebookEdit|Bash",
         "hooks": [
           {
@@ -48,30 +58,6 @@
             "type": "command",
             "command": "uv run --script ${CLAUDE_PLUGIN_ROOT}/hooks/write_constraints.py",
             "timeout": 30
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/session_start.py",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "SubagentStart": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/subagent_start.py",
-            "timeout": 5
           }
         ]
       }

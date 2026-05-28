@@ -26,7 +26,9 @@ Termination is split between two pieces:
 
 ## Marker write mechanism
 
-Terminal markers (`play-close`, `play-abort`) cannot be written via Edit or Write because the marker fence hook denies any edit that introduces a marker line not already present. The plugin ships a script (analogous to the custom append tool) that the parent session invokes to append the marker; the marker fence explicitly permits this script's Bash invocation form.
+Terminal markers (`play-close`, `play-abort`) cannot be written via Edit or Write because the marker fence hook denies any role edit that introduces a marker line not already present. The plugin ships a script (analogous to the custom append tool) that the parent session invokes to append the marker; the script bypasses the marker fence by using direct file append (not Edit/Write).
+
+The script is **parent-only**: it checks the `AGENT_TYPE` env var, which the agent_env_inject PreToolUse hook injects only for subagent-context Bash calls. The parent's Bash subprocesses have no `AGENT_TYPE`. Presence of `AGENT_TYPE` ≡ caller is a subagent → script refuses. The parent has no analogous identifier to spoof.
 
 ## Termination preconditions for a role
 

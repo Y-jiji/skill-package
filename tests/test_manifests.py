@@ -24,10 +24,8 @@ def test_marketplace_manifest_is_valid_json():
 def test_hooks_json_is_valid_and_complete():
     obj = json.loads((REPO / "hooks" / "hooks.json").read_text())
     hooks = obj.get("hooks", {})
-    # Required event categories present
-    for ev in ("PreToolUse", "SubagentStart", "SubagentStop"):
+    for ev in ("PreToolUse", "SubagentStop"):
         assert ev in hooks, f"missing event {ev}"
-    # Every hook command references an existing script
     for ev, entries in hooks.items():
         for entry in entries:
             for h in entry.get("hooks", []):
@@ -50,22 +48,21 @@ def _parse_frontmatter(text):
 @pytest.mark.parametrize("agent_path", sorted((REPO / "agents").glob("*.md")))
 def test_agent_frontmatter(agent_path):
     fm = _parse_frontmatter(agent_path.read_text())
-    assert fm is not None, f"{agent_path.name} missing frontmatter"
-    assert re.search(r'^name:\s*\S+', fm, re.M), f"{agent_path.name} missing name"
-    assert re.search(r'^description:\s*\S+', fm, re.M), \
-        f"{agent_path.name} missing description"
+    assert fm is not None
+    assert re.search(r'^name:\s*\S+', fm, re.M)
+    assert re.search(r'^description:\s*\S+', fm, re.M)
 
 
 @pytest.mark.parametrize("skill_dir", sorted(d for d in (REPO / "skills").iterdir() if d.is_dir()))
 def test_skill_frontmatter(skill_dir):
     skill_md = skill_dir / "SKILL.md"
-    assert skill_md.exists(), f"{skill_dir.name}/SKILL.md missing"
+    assert skill_md.exists()
     fm = _parse_frontmatter(skill_md.read_text())
-    assert fm is not None, f"{skill_dir.name}/SKILL.md missing frontmatter"
+    assert fm is not None
     assert re.search(r'^name:\s*\S+', fm, re.M)
     assert re.search(r'^description:\s*\S+', fm, re.M)
 
 
 def test_bin_shims_executable():
     for shim in (REPO / "bin").iterdir():
-        assert shim.stat().st_mode & 0o111, f"{shim.name} not executable"
+        assert shim.stat().st_mode & 0o111

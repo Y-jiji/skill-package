@@ -1,95 +1,96 @@
-"""hooks/subagent_stop.py — enforces termination preconditions.
-
-A role may exit only if: (1) peer terminated AND terminal marker present,
-or (2) peer is still running. Otherwise the hook returns
-{"decision": "block", ...} to force the subagent to continue.
-"""
+"""hooks/subagent_stop.py — termination preconditions, fail-open."""
 import json
 from conftest import run_hook
 
 
-def _stop_event(session_id):
-    return {"session_id": session_id, "hook_event_name": "SubagentStop"}
+def _stop_event(agent_type=""):
+    e = {"hook_event_name": "SubagentStop"}
+    if agent_type:
+        e["agent_type"] = agent_type
+    return e
 
 
-def _entry(role, content, session_id=None):
-    return {"role": role, "session_id": session_id or f"sid-{role[:4]}",
+def _entry(role, content):
+    return {"role": role, "agent_id": f"a-{role[:4]}",
             "timestamp": "2026-05-27T00:00:00+00:00", "content": content}
 
 
 def test_peer_running_allows(fake_project, stage_game):
-    """Condition (2): peer hasn't exited, this role can stop."""
-    stage_game()  # default terminated map is absent → both running
-    r = run_hook("subagent_stop.py", _stop_event("sid-impl"),
+    stage_game()
+    r = run_hook("subagent_stop.py",
+                 _stop_event("functional-harness:implementer"),
                  project_dir=fake_project)
     assert r.returncode == 0
-    # No block decision in stdout.
-    assert not r.stdout.strip() or '"decision":"block"' not in r.stdout.replace(" ", "")
+    assert '"decision"' not in r.stdout
 
 
 def test_peer_terminated_with_marker_allows(fake_project, stage_game):
-    """Condition (1): peer already exited AND marker present."""
     stage_game(
         log_entries=[_entry("orchestrator", "play-close")],
         terminated={"tester": True},
     )
-    r = run_hook("subagent_stop.py", _stop_event("sid-impl"),
+    r = run_hook("subagent_stop.py",
+                 _stop_event("functional-harness:implementer"),
                  project_dir=fake_project)
     assert r.returncode == 0
 
 
 def test_peer_terminated_no_marker_blocks(fake_project, stage_game):
-    """Forbidden state: peer exited, no marker. Must block."""
     stage_game(
         log_entries=[_entry("tester", "stop-request: no angle")],
         terminated={"tester": True},
     )
-    r = run_hook("subagent_stop.py", _stop_event("sid-impl"),
+    r = run_hook("subagent_stop.py",
+                 _stop_event("functional-harness:implementer"),
                  project_dir=fake_project)
-    assert r.returncode == 0  # hook itself exits 0, but emits block JSON
+    assert r.returncode == 0
     out = json.loads(r.stdout)
     assert out.get("decision") == "block"
     assert "monitor" in out.get("reason", "").lower()
 
 
-def test_non_role_session_passes_through(fake_project, stage_game):
-    """Bootstrap subagents and other non-harness subagents aren't enforced."""
+def test_parent_passes_through(fake_project, stage_game):
     stage_game()
-    r = run_hook("subagent_stop.py", _stop_event("unrelated-session"),
+    r = run_hook("subagent_stop.py", _stop_event(""),
+                 project_dir=fake_project)
+    assert r.returncode == 0
+
+
+def test_non_harness_subagent_passes_through(fake_project, stage_game):
+    stage_game()
+    r = run_hook("subagent_stop.py", _stop_event("general-purpose"),
                  project_dir=fake_project)
     assert r.returncode == 0
 
 
 def test_no_registry_passes_through(fake_project):
-    r = run_hook("subagent_stop.py", _stop_event("any"),
+    r = run_hook("subagent_stop.py",
+                 _stop_event("functional-harness:implementer"),
                  project_dir=fake_project)
     assert r.returncode == 0
 
 
-def test_missing_dialog_log_allows(fake_project, stage_game, tmp_path):
-    """Abnormality: registry says dialog_log_path is something that doesn't
-    exist on disk. Even in the otherwise-forbidden state (peer terminated,
-    no marker), the hook should fail open and allow the stop."""
+def test_missing_dialog_log_allows(fake_project, stage_game):
+    """Abnormality: forbidden state but dialog log path is unreadable."""
     import json as _json
     stage_game(
         log_entries=[_entry("tester", "stop-request: x")],
         terminated={"tester": True},
     )
-    # Point the registry at a nonexistent log
     reg_path = f"/tmp/functional-harness/PROJECT-PATH-{str(fake_project).replace('/', '-')}/game.json"
     with open(reg_path) as f:
         reg = _json.load(f)
     reg["dialog_log_path"] = "/tmp/does-not-exist-anywhere.log"
     with open(reg_path, "w") as f:
         _json.dump(reg, f)
-    r = run_hook("subagent_stop.py", _stop_event("sid-impl"),
+    r = run_hook("subagent_stop.py",
+                 _stop_event("functional-harness:implementer"),
                  project_dir=fake_project)
     assert r.returncode == 0
-    assert "decision" not in r.stdout  # no block emitted
+    assert "decision" not in r.stdout
 
 
 def test_empty_dialog_log_path_allows(fake_project, stage_game):
-    """Abnormality: registry has empty dialog_log_path — allow stop."""
     import json as _json
     stage_game(
         log_entries=[_entry("tester", "stop-request: x")],
@@ -101,14 +102,14 @@ def test_empty_dialog_log_path_allows(fake_project, stage_game):
     reg["dialog_log_path"] = ""
     with open(reg_path, "w") as f:
         _json.dump(reg, f)
-    r = run_hook("subagent_stop.py", _stop_event("sid-impl"),
+    r = run_hook("subagent_stop.py",
+                 _stop_event("functional-harness:implementer"),
                  project_dir=fake_project)
     assert r.returncode == 0
     assert "decision" not in r.stdout
 
 
 def test_malformed_event_allows(fake_project, stage_game):
-    """Abnormality: stdin isn't valid JSON — the top-level catch allows."""
     import subprocess
     from conftest import HOOKS_DIR
     r = subprocess.run(
