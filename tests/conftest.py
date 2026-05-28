@@ -15,6 +15,7 @@ Helpers here let a test (a) inject `agent_type` into a hook event JSON and
 """
 import json
 import os
+import secrets
 import shutil
 import subprocess
 from pathlib import Path
@@ -35,6 +36,22 @@ def registry_dir_for(project: Path) -> Path:
     return Path(f"/tmp/functional-harness/PROJECT-PATH-{encoded_path(project)}")
 
 
+def _load_mangled_names(project_dir) -> tuple[str, str]:
+    """Return (role_var, id_var) from the staged registry, or
+    ('AGENT_TYPE', 'AGENT_ID') if the registry isn't there."""
+    reg_path = registry_dir_for(Path(project_dir)) / "game.json"
+    if not reg_path.exists():
+        return 'AGENT_TYPE', 'AGENT_ID'
+    try:
+        reg = json.loads(reg_path.read_text())
+    except json.JSONDecodeError:
+        return 'AGENT_TYPE', 'AGENT_ID'
+    return (
+        reg.get('role_env_var_name') or 'AGENT_TYPE',
+        reg.get('role_env_id_name') or 'AGENT_ID',
+    )
+
+
 @pytest.fixture
 def fake_project(tmp_path):
     project = tmp_path / "proj"
@@ -48,9 +65,11 @@ def fake_project(tmp_path):
 def stage_game(fake_project, tmp_path):
     """Write a registry; optionally seed dialog log entries.
 
-    The post-refactor registry has just `dialog_log_path`, `project_root`,
-    `cursors`, and optionally `terminated`. No `sessions`, no
-    `parent_session_id` — role identity comes from agent_type at hook time.
+    Includes per-game-mangled env var names (`role_env_var_name`,
+    `role_env_id_name`) so the scripts under test exercise the
+    production code path — agent_env_inject would set those names from
+    this same registry. `_run` reads them back when wiring AGENT_TYPE
+    into a subprocess invocation.
     """
     def _stage(*, log_entries=None, cursors=None, terminated=None):
         log_path = tmp_path / "dialog.log"
@@ -60,9 +79,15 @@ def stage_game(fake_project, tmp_path):
                 for e in log_entries:
                     f.write(json.dumps(e) + '\n')
 
+        suffix = secrets.token_hex(8)
+        role_env_var_name = f"_FH_ROLE_{suffix}"
+        role_env_id_name = f"_FH_ID_{suffix}"
+
         reg = {
             "dialog_log_path": str(log_path),
             "project_root": str(fake_project),
+            "role_env_var_name": role_env_var_name,
+            "role_env_id_name": role_env_id_name,
             "cursors": cursors or {},
         }
         if terminated is not None:
@@ -74,7 +99,13 @@ def stage_game(fake_project, tmp_path):
         with open(reg_path, 'w') as f:
             json.dump(reg, f, indent=2)
 
-        return {"reg_path": str(reg_path), "log_path": str(log_path), "registry": reg}
+        return {
+            "reg_path": str(reg_path),
+            "log_path": str(log_path),
+            "registry": reg,
+            "role_env_var_name": role_env_var_name,
+            "role_env_id_name": role_env_id_name,
+        }
 
     return _stage
 
@@ -97,10 +128,17 @@ def _run(cmd, *, stdin="", project_dir="", agent_type="", agent_id="",
         env.pop(v, None)
     if project_dir:
         env['CLAUDE_PROJECT_DIR'] = str(project_dir)
+    # If a registry is staged for this project_dir and it carries the
+    # per-game-mangled role/id var names, route AGENT_TYPE / AGENT_ID
+    # through those instead — that's the production code path the
+    # scripts read.
+    role_var, id_var = 'AGENT_TYPE', 'AGENT_ID'
+    if project_dir:
+        role_var, id_var = _load_mangled_names(project_dir)
     if agent_type:
-        env['AGENT_TYPE'] = agent_type
+        env[role_var] = agent_type
     if agent_id:
-        env['AGENT_ID'] = agent_id
+        env[id_var] = agent_id
     if extra_env:
         env.update(extra_env)
     return subprocess.run(cmd, input=stdin, capture_output=True, text=True,

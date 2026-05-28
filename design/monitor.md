@@ -14,7 +14,7 @@ This is the sole mechanism by which a subagent receives dialog-log entries.
 ## Interface
 
 - **Caller**: the subagent itself (or the parent orchestrator). Real games invoke the script through the `Monitor` tool with `persistent: true`; tests invoke it directly via `subprocess.run`.
-- **Input**: none from the role — the dialog log path is resolved internally from the per-project registry, and the caller's cursor key is the role name derived from `AGENT_TYPE` in env (set by the agent_env_inject PreToolUse hook for subagent contexts; absent for parent calls, in which case cursor key is `"orchestrator"`). The caller cannot override the cursor key — see `scripts/monitor.py`'s `env_value` for the ancestor-walking resolution that defeats os.environ-shaping spoofs.
+- **Input**: none from the role — the dialog log path is resolved internally from the per-project registry, and the caller's cursor key is the role name derived from a per-game-mangled env var (whose name is recorded in the registry under `role_env_var_name`; see [hooks.md → Role identity propagation](hooks.md)). The role never learns the var name — the registry is access-control-fenced — so it cannot read, unset, or spoof it from inside its own command. Parent calls have no value for the mangled var → cursor key is `"orchestrator"`.
 - **Output**: one JSON object per stdout line, each one a dialog-log entry the caller is allowed to see (per the role filter below). The stream ends on a terminal marker; on a `Monitor`-tool invocation each line is delivered as its own notification.
 - **Contract**: the subagent receives dialog-log entries only via this command's stdout; direct reads of the log are forbidden by the access-control hook.
 

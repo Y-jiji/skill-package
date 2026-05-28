@@ -138,9 +138,10 @@ def test_subagent_stop_blocks_then_unblocks_around_marker(fake_project, stage_ga
     assert "decision" not in r2.stdout
 
 
-def test_agent_env_inject_rewrites_subagent_bash(fake_project):
-    """The new PreToolUse hook prepends AGENT_TYPE/AGENT_ID to bash commands
-    when called from a subagent."""
+def test_agent_env_inject_rewrites_subagent_bash_with_mangled_names(fake_project, stage_game):
+    """The PreToolUse hook prepends the per-game-mangled role/id vars
+    from the registry — not the literal `AGENT_TYPE` / `AGENT_ID`."""
+    game = stage_game()
     event = {
         "tool_name": "Bash",
         "tool_input": {"command": "harness-append 'hello'"},
@@ -148,10 +149,34 @@ def test_agent_env_inject_rewrites_subagent_bash(fake_project):
         "agent_id": "agent-abc",
     }
     r = run_hook("agent_env_inject.py", event, project_dir=fake_project)
-    assert r.returncode == 0
+    assert r.returncode == 0, r.stderr
     out = json.loads(r.stdout)
     cmd = out["hookSpecificOutput"]["updatedInput"]["command"]
-    assert cmd == "AGENT_TYPE=functional-harness:implementer AGENT_ID=agent-abc harness-append 'hello'"
+    role_var = game["role_env_var_name"]
+    id_var = game["role_env_id_name"]
+    assert cmd == (
+        f"{role_var}=functional-harness:implementer "
+        f"{id_var}=agent-abc harness-append 'hello'"
+    )
+
+
+def test_agent_env_inject_falls_back_when_no_registry(fake_project):
+    """No staged registry → fall back to the plain AGENT_TYPE / AGENT_ID
+    names so the hook doesn't crash before /game-start has run."""
+    event = {
+        "tool_name": "Bash",
+        "tool_input": {"command": "harness-append 'hello'"},
+        "agent_type": "functional-harness:implementer",
+        "agent_id": "agent-abc",
+    }
+    r = run_hook("agent_env_inject.py", event, project_dir=fake_project)
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout)
+    cmd = out["hookSpecificOutput"]["updatedInput"]["command"]
+    assert cmd == (
+        "AGENT_TYPE=functional-harness:implementer "
+        "AGENT_ID=agent-abc harness-append 'hello'"
+    )
 
 
 def test_agent_env_inject_passes_through_parent(fake_project):

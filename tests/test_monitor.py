@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import run_script, SCRIPTS_DIR
+from conftest import run_script, SCRIPTS_DIR, _load_mangled_names
 
 
 def _entry(role, content):
@@ -26,7 +26,11 @@ def _popen(*, agent_type="", project_dir):
         env.pop(v, None)
     env['CLAUDE_PROJECT_DIR'] = str(project_dir)
     if agent_type:
-        env['AGENT_TYPE'] = agent_type
+        # Set the per-game-mangled role var if the registry has one;
+        # otherwise fall back to AGENT_TYPE. Mirrors what
+        # agent_env_inject does in production.
+        role_var, _ = _load_mangled_names(project_dir)
+        env[role_var] = agent_type
     return subprocess.Popen(
         ["python3", "-u", str(SCRIPTS_DIR / "monitor.py")],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env,

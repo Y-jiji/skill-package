@@ -15,9 +15,14 @@ process exits (including crashes / SIGKILL), so the invariant is self-
 healing. See design/monitor.md → "Single-instance enforcement" for the
 contract and rationale.
 
-Caller role comes from AGENT_TYPE in env (injected by the agent_env_inject
-PreToolUse hook for subagent contexts). Parent calls have no AGENT_TYPE →
-caller is the orchestrator.
+Caller role comes from a per-game-mangled env var whose name lives in
+the registry under `role_env_var_name`. The agent_env_inject hook reads
+the same registry and prepends `<mangled>=<agent_type>` to subagent Bash
+calls. Agents cannot read the registry (access-control fence), so they
+do not know the var name and cannot spoof, unset, or override the role
+identity from inside their command. Parent calls do not get the prefix
+→ the env var is absent → caller is the orchestrator. If the registry
+lacks `role_env_var_name` (older registry), falls back to AGENT_TYPE.
 
 Per-role visibility:
   - Everyone skips their own appends (no echo).
@@ -43,8 +48,9 @@ def registry_path() -> str:
     return f"/tmp/functional-harness/PROJECT-PATH-{encoded}/game.json"
 
 
-def caller_role() -> str:
-    at = os.environ.get('AGENT_TYPE', '')
+def caller_role(reg: dict) -> str:
+    var = reg.get('role_env_var_name') or 'AGENT_TYPE'
+    at = os.environ.get(var, '')
     if not at:
         return 'orchestrator'
     return at.rsplit(':', 1)[-1]
@@ -129,7 +135,7 @@ def main() -> int:
         return 2
 
     log_path = reg['dialog_log_path']
-    cursor_key = caller_role()
+    cursor_key = caller_role(reg)
     # Held for the lifetime of this process; do not close the fd.
     _lock_fd = acquire_role_lock(cursor_key, os.path.dirname(reg_path))
     cursor = reg.get('cursors', {}).get(cursor_key, 0)

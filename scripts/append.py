@@ -1,9 +1,19 @@
 #!/usr/bin/env python3
 """Custom append tool — appends one entry to the dialog log.
 
-Role identity comes from AGENT_TYPE in env, injected by the
-agent_env_inject PreToolUse hook for subagent-context Bash calls. Parent
-calls have no AGENT_TYPE → caller is the orchestrator.
+Role identity comes from a per-game-mangled env var whose name is
+recorded in the registry under `role_env_var_name` (with the matching
+`role_env_id_name` for the agent id). The agent_env_inject PreToolUse
+hook reads those names from the same registry and prepends
+`<mangled>=<agent_type> <mangled_id>=<agent_id> <cmd>` to every
+subagent Bash call. The agent never sees the var names — the registry
+is access-control fenced from harness roles — so it cannot read,
+unset, or spoof them. Parent calls don't get the prefix → the env var
+is absent → caller is the orchestrator.
+
+If the registry has no `role_env_var_name` field (e.g. a registry
+written by older code), the script falls back to the plain
+`AGENT_TYPE` / `AGENT_ID` names.
 
 Usage: append.py "<message content>"
 """
@@ -20,14 +30,17 @@ def registry_path() -> str:
     return f"/tmp/functional-harness/PROJECT-PATH-{encoded}/game.json"
 
 
-def caller_role() -> str:
-    """orchestrator if no AGENT_TYPE in env; otherwise the role name from
-    AGENT_TYPE with the plugin namespace stripped (e.g.
-    'functional-harness:implementer' → 'implementer')."""
-    at = os.environ.get('AGENT_TYPE', '')
+def role_from_env(reg: dict) -> str:
+    var = reg.get('role_env_var_name') or 'AGENT_TYPE'
+    at = os.environ.get(var, '')
     if not at:
         return 'orchestrator'
     return at.rsplit(':', 1)[-1]
+
+
+def agent_id_from_env(reg: dict) -> str:
+    var = reg.get('role_env_id_name') or 'AGENT_ID'
+    return os.environ.get(var, '')
 
 
 def main() -> int:
@@ -45,8 +58,8 @@ def main() -> int:
         return 2
 
     log_path = reg['dialog_log_path']
-    role = caller_role()
-    agent_id = os.environ.get('AGENT_ID', '')
+    role = role_from_env(reg)
+    agent_id = agent_id_from_env(reg)
 
     entry = {
         'role': role,

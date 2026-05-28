@@ -15,11 +15,15 @@ Every PreToolUse hook event from Claude Code includes `agent_type` (and `agent_i
 
 To make role identity available to harness scripts the Bash tool invokes, a PreToolUse(Bash) hook (`agent_env_inject.py`) rewrites the command via `hookSpecificOutput.updatedInput`:
 
-    AGENT_TYPE=<agent_type> AGENT_ID=<agent_id> <original command>
+    <role_var>=<agent_type> <id_var>=<agent_id> <original command>
 
-This bash per-command env-var prefix sets `AGENT_TYPE` and `AGENT_ID` for the single command being run. The harness scripts (`append.py`, `monitor.py`, `marker_write.py`) read these from `os.environ` to determine their caller's role (the role name is `agent_type` with the plugin namespace stripped, e.g. `functional-harness:implementer` → `implementer`). For parent calls (no `agent_type` in the hook event) the hook makes no rewrite and the script sees no `AGENT_TYPE`, treating the caller as the orchestrator.
+`<role_var>` and `<id_var>` are **per-game-mangled** env-var names recorded in the registry under `role_env_var_name` and `role_env_id_name`. `/game-start` generates them at registry creation as `_FH_ROLE_<random>` / `_FH_ID_<random>` and writes them into `game.json` alongside the dialog log path. The agent_env_inject hook reads those names back from the registry each time it fires; the harness scripts (`append.py`, `monitor.py`, `marker_write.py`) read the same registry to learn which env-var name to consult before doing `os.environ.get(name)`. If the registry is missing or has no `role_env_var_name` field (pre-game or older registry), the hook and the scripts both fall back to the plain `AGENT_TYPE` / `AGENT_ID` names so behaviour degrades gracefully rather than crashing.
 
-The other hooks (access_control, peer_fence, marker_fence, role_bash_allowlist, write_constraints, subagent_stop) read `agent_type` from their own stdin directly — they don't depend on the env-inject hook's rewrite.
+**Why mangled names** — without them, a hostile role can spoof its identity from inside its own Bash command using bash's per-command env-prefix semantics: the prepend `AGENT_TYPE=tester …` is overridden by a user-supplied `AGENT_TYPE=implementer cmd` because the later assignment wins in left-to-right composition; `unset AGENT_TYPE`, `env -u AGENT_TYPE`, and a leading `;` that detaches the hook's prefix all defeat the simple-name design too. Mangling moves the secret to a name the role does not know. The name lives only in the registry — which is access-control-fenced from harness roles (Read by path equality, Bash by string-contains and shell-glob heuristics, Grep/Glob by the same access_control hook) — and never appears in `.claude/settings.json` or anywhere else the role can read. Without the name, the role cannot reference, override, or unset the var even though the var IS in its own bash process's env. Spoof attacks like `cmd AGENT_TYPE=implementer` no longer affect the harness because the scripts no longer consult `AGENT_TYPE`.
+
+For parent (non-subagent) bash calls, `agent_type` isn't in the hook event → no rewrite → the script's env has no value for the mangled var → caller is the orchestrator.
+
+The other hooks (access_control, peer_fence, marker_fence, role_bash_allowlist, write_constraints, subagent_stop) read `agent_type` from their own stdin directly — they don't depend on the env-inject hook's rewrite, so they aren't affected by the env-var-name mangling.
 
 ## Dialog log access control
 

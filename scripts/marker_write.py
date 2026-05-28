@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """Marker-write — appends a terminal marker to the dialog log.
 
-Parent-only: refuses if AGENT_TYPE is set in env. AGENT_TYPE is injected by
-the agent_env_inject hook for subagent-context Bash calls only; the parent
-orchestrator's bash subprocesses have no AGENT_TYPE. Thus presence of
-AGENT_TYPE ≡ caller is a subagent, and the script refuses.
+Parent-only: refuses if the per-game-mangled role env var (whose name
+is in the registry under `role_env_var_name`) is set. The agent_env_inject
+hook sets that var for subagent-context Bash calls only; the parent
+orchestrator's bash subprocesses have no value for it. Thus presence of
+the mangled var ≡ caller is a subagent, and the script refuses. If the
+registry has no `role_env_var_name` field (older registry), the script
+falls back to checking `AGENT_TYPE`.
 
 Usage: marker_write.py play-close|play-abort
 """
@@ -29,11 +32,6 @@ def main() -> int:
         return 2
     marker = sys.argv[1]
 
-    if os.environ.get('AGENT_TYPE'):
-        print("marker-write is parent-only; refusing (AGENT_TYPE is set, "
-              "indicating a subagent caller)", file=sys.stderr)
-        return 3
-
     reg_path = registry_path()
     try:
         with open(reg_path) as f:
@@ -41,6 +39,12 @@ def main() -> int:
     except FileNotFoundError:
         print(f"no game registry at {reg_path}", file=sys.stderr)
         return 2
+
+    role_var = reg.get('role_env_var_name') or 'AGENT_TYPE'
+    if os.environ.get(role_var):
+        print(f"marker-write is parent-only; refusing ({role_var} is set, "
+              f"indicating a subagent caller)", file=sys.stderr)
+        return 3
 
     log_path = reg['dialog_log_path']
     entry = {

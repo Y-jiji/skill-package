@@ -47,18 +47,26 @@ where `<encoded>` is `$CLAUDE_PROJECT_DIR` with `/` replaced by `-`. Compute thi
 For a **new game**:
 
 1. `mkdir -p /tmp/functional-harness/PROJECT-PATH-<encoded>`.
-2. Generate a random dialog log path:
+2. Generate a random dialog log path AND a pair of per-game-mangled role/id env-var names in one shot:
    ```bash
-   python3 -c "import tempfile, os; fd, p = tempfile.mkstemp(suffix='.log', prefix='dialog-', dir='/tmp'); os.close(fd); print(p)"
+   python3 -c "
+   import tempfile, os, secrets, json
+   fd, log = tempfile.mkstemp(suffix='.log', prefix='dialog-', dir='/tmp'); os.close(fd)
+   suffix = secrets.token_hex(8)
+   print(json.dumps({
+       'dialog_log_path': log,
+       'role_env_var_name': f'_FH_ROLE_{suffix}',
+       'role_env_id_name': f'_FH_ID_{suffix}',
+   }))"
    ```
-   Capture the path.
-3. Write the registry. Your own `$CLAUDE_SESSION_ID` is the `parent_session_id`. Initial content:
+   Capture all three values. The mangled var names are how the `agent_env_inject` hook smuggles role identity past the agent: the hook reads them from the registry and prepends `<role_var>=<role> <id_var>=<id> <cmd>` to every subagent Bash call; the harness scripts read those same names back out of `os.environ`. Because the names are random per game and live only in the (access-control-fenced) registry, the agent never learns them and cannot spoof, unset, or override the role identity from inside its own command.
+3. Write the registry. Initial content (substitute the three captured values):
    ```json
    {
      "dialog_log_path": "<random path>",
      "project_root": "<$CLAUDE_PROJECT_DIR>",
-     "parent_session_id": "<$CLAUDE_SESSION_ID>",
-     "sessions": {},
+     "role_env_var_name": "<mangled role var>",
+     "role_env_id_name": "<mangled id var>",
      "cursors": {}
    }
    ```
