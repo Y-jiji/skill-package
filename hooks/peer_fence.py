@@ -6,10 +6,12 @@ writes a terminal marker.
 Caller role is taken directly from `agent_type` in the hook event (Claude
 Code populates this for subagent contexts). Parent calls are not fenced.
 
-The monitor exemption is keyed on the leading program token (after any
-env-var assignments prepended by agent_env_inject), parsed via `shlex`
-with `punctuation_chars=True`. A substring match on `harness-monitor` /
-`monitor.py` would approve `harness-monitor; cat /etc/passwd` and
+The wait-command exemption (the two sanctioned ways for a fenced role
+to idle on the next dialog-log entry — `harness-monitor` for stream use
+and `harness-park` for single-shot Bash waits) is keyed on the leading
+program token (after any env-var assignments prepended by
+agent_env_inject), parsed via `shlex` with `punctuation_chars=True`. A
+substring match would approve `harness-monitor; cat /etc/passwd` and
 similar smuggled-shell variants; the shlex-based check rejects any
 command that uses compounding (`;`, `&&`, `||`), pipes (`|`),
 redirection (`<`, `>`), subshells (`(...)`), backgrounding (`&`), or
@@ -25,11 +27,14 @@ import sys
 PEER_ROLES = {'implementer': 'tester', 'tester': 'implementer'}
 _SHELL_OPERATOR_CHARS = frozenset(';|&<>()')
 _ENV_ASSIGN_RE = re.compile(r'[A-Za-z_][A-Za-z_0-9]*=')
-# The documented entry point for "the monitor command" — the shim under
-# `bin/`. A bare `python3 .../monitor.py` is NOT accepted: `python3
-# <anything>` is an arbitrary interpreter invocation, exactly the kind of
-# escape hatch this fence is meant to close.
-_MONITOR_PROGRAM = 'harness-monitor'
+# The two sanctioned wait commands. Both are documented shim entry
+# points under `bin/`. A bare `python3 .../monitor.py` is NOT accepted:
+# `python3 <anything>` is an arbitrary interpreter invocation, exactly
+# the kind of escape hatch this fence is meant to close.
+#   - harness-monitor: persistent stream (Monitor-tool invocation)
+#   - harness-park: single-shot blocking wait (Bash invocation; the
+#     subagent's idle primitive while SubagentStop pins it in-loop)
+_WAIT_PROGRAMS = ('harness-monitor', 'harness-park')
 
 
 def registry_path() -> str:
@@ -93,16 +98,18 @@ def main() -> None:
         cmd = inp.get('command', '')
         if _is_monitor_only_invocation(cmd):
             sys.exit(0)
-    deny(f"peer ({peer}) has issued an open stop-request; only the monitor "
-         f"command is allowed for {role} until the parent writes a terminal "
-         f"marker. Call harness-monitor to wait for the marker.")
+    deny(f"peer ({peer}) has issued an open stop-request; only the "
+         f"wait commands (harness-monitor or harness-park) are allowed "
+         f"for {role} until the parent writes a terminal marker. Call "
+         f"harness-park via Bash to idle until the next dialog-log entry.")
 
 
 def _is_monitor_only_invocation(cmd: str) -> bool:
-    """True iff `cmd` parses as a single `harness-monitor` invocation
-    with no compounding, pipes, redirection, subshells, backgrounding,
-    or command substitution. Leading env-var assignments (KEY=VALUE)
-    from agent_env_inject are skipped when finding the leading program.
+    """True iff `cmd` parses as a single `harness-monitor` or
+    `harness-park` invocation with no compounding, pipes, redirection,
+    subshells, backgrounding, or command substitution. Leading env-var
+    assignments (KEY=VALUE) from agent_env_inject are skipped when
+    finding the leading program.
     """
     if '$(' in cmd or '`' in cmd:
         return False
@@ -118,7 +125,7 @@ def _is_monitor_only_invocation(cmd: str) -> bool:
     for t in tokens:
         if _ENV_ASSIGN_RE.match(t):
             continue
-        return t == _MONITOR_PROGRAM
+        return t in _WAIT_PROGRAMS
     return False
 
 

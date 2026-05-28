@@ -1,21 +1,42 @@
 #!/usr/bin/env python3
-"""SubagentStop hook — enforces termination preconditions for harness roles.
+"""SubagentStop hook — pins a harness role into its loop until a
+terminal marker is in the dialog log.
 
-A role may exit its loop only if at least one of:
-  (1) The peer role has terminated AND a terminal marker is in the log.
-  (2) The peer role is still running.
+Rule: a harness role may exit only when a `play-close` or `play-abort`
+entry is present in the dialog log. In every other state (peer alive,
+peer dead, role just finished its own response, etc.) the hook returns
+`{"decision": "block", "reason": "..."}` so Claude Code keeps the
+subagent alive. The block reason tells the role to call `harness-park`
+to idle until the next dialog-log entry — which is the cheap "rest"
+primitive (one tool call holds the wait inside a blocking subprocess;
+the agent's turn count and token cost stay bounded regardless of how
+long the wait lasts).
 
-Caller role comes from `agent_type` in the hook event (Claude Code populates
-this for subagent contexts). The hook is fail-open on any abnormality (no
-registry, no log, malformed event, etc.) — block is reserved for the clean,
-unambiguous forbidden state (peer terminated, no marker).
+Why this is the right rule:
+  - "Peer alive → exit OK" (the prior condition 2) let a role walk off
+    mid-game without escalating a stop-request. Observed in practice
+    when an implementer ended its response during a quiet stretch; the
+    tester was still running, the hook allowed exit, the game continued
+    one-sided.
+  - The only sanctioned ways out of the game are (a) the orchestrator
+    writes a terminal marker (after a confirmed stop-request from
+    either role, or after a user abort), or (b) the orchestrator
+    aborts. Both produce the marker. So requiring the marker for exit
+    is sufficient.
+  - Both roles' exits are gated by the same marker, so once the marker
+    is written they both unblock — no peer-tracking state needed.
+
+The hook fails open on abnormality (no registry, no log, malformed
+event). Parent/orchestrator and non-harness subagents are exempt — only
+implementer/tester are gated.
 """
 import json
 import os
 import sys
 
 
-PEER_ROLES = {'implementer': 'tester', 'tester': 'implementer'}
+HARNESS_ROLES = {'implementer', 'tester'}
+TERMINAL_MARKERS = ('play-close', 'play-abort')
 
 
 def registry_path() -> str:
@@ -39,67 +60,41 @@ def read_entries(log_path: str) -> list:
         return []
 
 
-def mark_terminated(reg_path: str, role: str) -> None:
-    try:
-        import fcntl
-        with open(reg_path, 'r+') as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
-                f.seek(0)
-                r = json.load(f)
-                r.setdefault('terminated', {})[role] = True
-                f.seek(0)
-                f.truncate()
-                json.dump(r, f, indent=2)
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-    except OSError:
-        pass
-
-
 def main() -> None:
     try:
         event = json.load(sys.stdin)
     except json.JSONDecodeError:
         sys.exit(0)
     role = caller_role(event)
-    if role not in PEER_ROLES:
+    if role not in HARNESS_ROLES:
         sys.exit(0)
-    peer = PEER_ROLES[role]
 
     reg_path = registry_path()
     try:
         with open(reg_path) as f:
             reg = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
-        sys.exit(0)
+        sys.exit(0)  # no game → nothing to gate
 
     log_path = reg.get('dialog_log_path', '')
     if not log_path or not os.path.isfile(log_path):
-        sys.exit(0)  # fail-open
+        sys.exit(0)  # fail open
 
     entries = read_entries(log_path)
-    has_marker = any(e.get('content') in ('play-close', 'play-abort')
-                     for e in entries)
-    peer_terminated = reg.get('terminated', {}).get(peer, False)
+    has_marker = any(e.get('content') in TERMINAL_MARKERS for e in entries)
+    if has_marker:
+        sys.exit(0)  # game is over → exit permitted
 
-    # Condition (1)
-    if peer_terminated and has_marker:
-        mark_terminated(reg_path, role)
-        sys.exit(0)
-    # Condition (2)
-    if not peer_terminated:
-        mark_terminated(reg_path, role)
-        sys.exit(0)
-
-    # Forbidden state: peer exited, no marker yet
     print(json.dumps({
         "decision": "block",
         "reason": (
-            f"You cannot terminate yet: your peer ({peer}) has already "
-            f"exited but the parent has not written a terminal marker. "
-            f"Call harness-monitor to block until the marker (or a user "
-            f"instruction) arrives, then proceed."
+            "You cannot terminate yet: the parent has not written a terminal "
+            "marker (play-close / play-abort) to the dialog log. Call "
+            "harness-park via Bash to idle until the next dialog-log entry; "
+            "one harness-park invocation costs one tool-call turn step "
+            "regardless of how long the wait actually takes. Loop back to "
+            "harness-park until the marker arrives, then this hook will "
+            "permit your exit."
         ),
     }))
     sys.exit(0)

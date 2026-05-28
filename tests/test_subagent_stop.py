@@ -1,4 +1,14 @@
-"""hooks/subagent_stop.py — termination preconditions, fail-open."""
+"""hooks/subagent_stop.py — pin harness roles in-loop until terminal
+marker. Fail-open on abnormality.
+
+The contract:
+  - Terminal marker (play-close / play-abort) in the log → exit allowed.
+  - No marker → block, regardless of peer state or whether the role
+    just finished its own response.
+  - Non-harness roles (orchestrator, general-purpose, etc.) → not
+    fenced, pass through.
+  - Missing registry / unreadable log / malformed event → fail open.
+"""
 import json
 from conftest import run_hook
 
@@ -15,8 +25,24 @@ def _entry(role, content):
             "timestamp": "2026-05-27T00:00:00+00:00", "content": content}
 
 
-def test_peer_running_allows(fake_project, stage_game):
+def test_no_marker_blocks_even_with_peer_alive(fake_project, stage_game):
+    """The most common case during a quiet stretch: peer is still
+    running, this role has nothing more to do for now. Old hook allowed
+    exit here (condition 2) and the role walked off mid-game. New rule:
+    no marker → block, regardless of peer state."""
     stage_game()
+    r = run_hook("subagent_stop.py",
+                 _stop_event("functional-harness:implementer"),
+                 project_dir=fake_project)
+    assert r.returncode == 0
+    out = json.loads(r.stdout)
+    assert out.get("decision") == "block"
+    assert "harness-park" in out.get("reason", "").lower()
+
+
+def test_marker_present_allows(fake_project, stage_game):
+    """Game over — exit permitted."""
+    stage_game(log_entries=[_entry("orchestrator", "play-close")])
     r = run_hook("subagent_stop.py",
                  _stop_event("functional-harness:implementer"),
                  project_dir=fake_project)
@@ -24,29 +50,26 @@ def test_peer_running_allows(fake_project, stage_game):
     assert '"decision"' not in r.stdout
 
 
-def test_peer_terminated_with_marker_allows(fake_project, stage_game):
-    stage_game(
-        log_entries=[_entry("orchestrator", "play-close")],
-        terminated={"tester": True},
-    )
+def test_play_abort_marker_also_allows(fake_project, stage_game):
+    stage_game(log_entries=[_entry("orchestrator", "play-abort")])
     r = run_hook("subagent_stop.py",
-                 _stop_event("functional-harness:implementer"),
+                 _stop_event("functional-harness:tester"),
                  project_dir=fake_project)
     assert r.returncode == 0
+    assert '"decision"' not in r.stdout
 
 
-def test_peer_terminated_no_marker_blocks(fake_project, stage_game):
-    stage_game(
-        log_entries=[_entry("tester", "stop-request: no angle")],
-        terminated={"tester": True},
-    )
+def test_stop_request_alone_does_not_allow_exit(fake_project, stage_game):
+    """A stop-request entry is not a terminal marker — the orchestrator
+    still has to confirm it. Until the marker is appended, both roles
+    stay pinned in-loop (waiting for the marker or for user feedback)."""
+    stage_game(log_entries=[_entry("tester", "stop-request: no angle")])
     r = run_hook("subagent_stop.py",
                  _stop_event("functional-harness:implementer"),
                  project_dir=fake_project)
     assert r.returncode == 0
     out = json.loads(r.stdout)
     assert out.get("decision") == "block"
-    assert "monitor" in out.get("reason", "").lower()
 
 
 def test_parent_passes_through(fake_project, stage_game):

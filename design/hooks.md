@@ -44,7 +44,7 @@ When a stop-request entry appears in the dialog log, the hook denies all tool ca
 
 ## Termination precondition enforcement
 
-A SubagentStop hook enforces the termination preconditions defined in `termination.md`. The hook returns `{"decision": "block", "reason": "..."}` when the subagent attempts to stop in the forbidden state (peer already exited, no terminal marker in the log), forcing the subagent to continue its loop. See `termination.md` for the full precondition definition.
+A SubagentStop hook enforces the termination precondition defined in `termination.md`: a harness role may exit only when a terminal marker (`play-close` / `play-abort`) is present in the dialog log. In every other state — peer alive, peer dead, role just finished its response — the hook returns `{"decision": "block", "reason": "..."}` and the block message tells the role to call `harness-park` to idle until the next dialog-log entry. The role's "rest" between dialog messages lives inside that bash subprocess; the subagent's turn count and token cost stay bounded regardless of how long the wait actually takes. See `termination.md` for the full rationale.
 
 ## Marker fence
 

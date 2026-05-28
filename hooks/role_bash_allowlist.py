@@ -33,7 +33,7 @@ import shlex
 import sys
 
 
-ALWAYS_ALLOWED_TOKENS = ('harness-monitor', 'harness-append', 'harness-marker-write')
+ALWAYS_ALLOWED_TOKENS = ('harness-monitor', 'harness-park', 'harness-append', 'harness-marker-write')
 HARNESS_ROLES = {'implementer', 'tester'}
 # A token whose content is exclusively these characters is a shell
 # operator (e.g. ';', '|', '&&', '>&', '>>'). Used as the "is this a
