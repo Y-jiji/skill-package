@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""SubagentStart hook — when a harness role subagent (implementer or tester)
-spawns, record its session_id ↔ role mapping in the per-project registry so
-the append tool, monitor, and other hooks can look up who is calling.
+"""SubagentStart hook — when ANY subagent spawns, write its session_id to
+the per-PPID file (so harness scripts the subagent invokes via Bash can
+learn the session id). For harness roles specifically (implementer, tester),
+also register session_id → role in the per-project registry.
 """
 import fcntl
 import json
@@ -20,10 +21,23 @@ def registry_path() -> str:
 
 def main() -> None:
     event = json.load(sys.stdin)
+    session_id = event.get('session_id', '')
+    cwd = event.get('cwd', '') or os.getcwd()
     agent = event.get('agent_name') or event.get('agent_type', '')
+
+    # Always write the per-PPID session-id file, regardless of agent type —
+    # subagents may call harness scripts even outside the implementer/tester
+    # roles, and the file is harmless either way.
+    if session_id:
+        try:
+            with open(f"/tmp/claude-session-{os.getppid()}.json", 'w') as f:
+                json.dump({'session_id': session_id, 'cwd': cwd}, f)
+        except OSError:
+            pass
+
+    # Only register harness roles in the registry's sessions map.
     if agent not in HARNESS_ROLES:
         sys.exit(0)
-    session_id = event.get('session_id', '')
     if not session_id:
         sys.exit(0)
 

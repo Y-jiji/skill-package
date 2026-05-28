@@ -99,7 +99,37 @@ def main() -> int:
 
     session_id = os.environ.get('CLAUDE_SESSION_ID', '')
     if not session_id:
-        print("CLAUDE_SESSION_ID not set", file=sys.stderr)
+        # Walk the PPID chain looking for a /tmp/claude-session-<pid>.json
+        # dropped by hooks. See scripts/append.py for the rationale.
+        pid = os.getppid()
+        for _ in range(8):
+            try:
+                with open(f"/tmp/claude-session-{pid}.json") as f:
+                    session_id = json.load(f).get('session_id', '')
+                if session_id:
+                    break
+            except (FileNotFoundError, json.JSONDecodeError):
+                pass
+            try:
+                with open(f"/proc/{pid}/status") as f:
+                    for line in f:
+                        if line.startswith("PPid:"):
+                            np = int(line.split()[1])
+                            if np == pid or np == 0:
+                                pid = 0
+                            else:
+                                pid = np
+                            break
+                    else:
+                        pid = 0
+            except (FileNotFoundError, ValueError, OSError):
+                pid = 0
+            if pid == 0:
+                break
+    if not session_id:
+        print("session id unavailable (env unset and no per-PPID session "
+              f"file found in /tmp walking from PPID {os.getppid()})",
+              file=sys.stderr)
         return 2
     if session_id == reg.get('parent_session_id'):
         cursor_key = 'orchestrator'

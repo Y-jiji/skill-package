@@ -40,6 +40,19 @@ def main() -> None:
     inp = event.get('tool_input', {})
     session_id = event.get('session_id', '')
 
+    # Refresh the per-PPID session-id file so any subsequent harness script
+    # invoked via Bash can learn the current session id (Claude Code does
+    # not expose CLAUDE_SESSION_ID in subprocess env). Same PPID as the
+    # bash subprocess about to run — both are children of the Claude Code
+    # session process.
+    if session_id:
+        try:
+            cwd = event.get('cwd', '') or os.getcwd()
+            with open(f"/tmp/claude-session-{os.getppid()}.json", 'w') as f:
+                json.dump({'session_id': session_id, 'cwd': cwd}, f)
+        except OSError:
+            pass
+
     reg = load_registry(registry_path())
     if reg is None:
         sys.exit(0)  # no active game → nothing to fence

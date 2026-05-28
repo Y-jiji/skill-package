@@ -47,11 +47,15 @@ def test_unknown_session_refused(fake_project, stage_game):
 
 
 def test_missing_session_id_refused(fake_project, stage_game):
+    """When CLAUDE_SESSION_ID is unset AND no per-PPID session file is found
+    anywhere up the process tree, the script must refuse."""
     stage_game()
+    # The script walks os.getppid() up; under pytest those PIDs are pytest's
+    # own ancestry, where /tmp/claude-session-<pid>.json should not exist.
     r = run_script("append.py", args=["nope"],
                    session_id="", project_dir=fake_project)
     assert r.returncode != 0
-    assert "session_id" in r.stderr.lower() or "claude_session_id" in r.stderr.lower()
+    assert "session" in r.stderr.lower()
 
 
 def test_missing_registry_refused(fake_project):
