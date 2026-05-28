@@ -1,4 +1,11 @@
-"""Multi-script integration scenarios."""
+"""Multi-script integration scenarios.
+
+monitor.py is a persistent stream: it emits one stdout line per visible
+entry and only exits when a terminal marker (play-close / play-abort) is
+delivered. Tests append the marker right after the entry under test so the
+script terminates deterministically; assertions then run against the
+JSONL stdout.
+"""
 import json
 from conftest import run_script, run_hook
 
@@ -8,18 +15,27 @@ def _entry(role, content):
             "timestamp": "2026-05-27T00:00:00+00:00", "content": content}
 
 
+def _jsonl(stdout: str) -> list[dict]:
+    return [json.loads(ln) for ln in stdout.splitlines() if ln.strip()]
+
+
 def test_tester_append_then_implementer_monitor(fake_project, stage_game):
     stage_game()
     run_script("append.py", args=["failing test foo"],
                agent_type="functional-harness:tester",
                project_dir=fake_project, timeout=5)
+    # Terminal marker terminates the stream so the test doesn't hang.
+    run_script("marker_write.py", args=["play-close"],
+               project_dir=fake_project, timeout=5)
     r = run_script("monitor.py",
                    agent_type="functional-harness:implementer",
                    project_dir=fake_project, timeout=5)
     assert r.returncode == 0
-    entry = json.loads(r.stdout)
-    assert entry["role"] == "tester"
-    assert entry["content"] == "failing test foo"
+    entries = _jsonl(r.stdout)
+    assert entries[0]["role"] == "tester"
+    assert entries[0]["content"] == "failing test foo"
+    # Last entry is the terminal marker that caused exit.
+    assert entries[-1]["content"] == "play-close"
 
 
 def test_implementer_append_then_tester_monitor_redacted(fake_project, stage_game):
@@ -27,13 +43,16 @@ def test_implementer_append_then_tester_monitor_redacted(fake_project, stage_gam
     run_script("append.py", args=["I added the foo interface"],
                agent_type="functional-harness:implementer",
                project_dir=fake_project, timeout=5)
+    run_script("marker_write.py", args=["play-close"],
+               project_dir=fake_project, timeout=5)
     r = run_script("monitor.py",
                    agent_type="functional-harness:tester",
                    project_dir=fake_project, timeout=5)
     assert r.returncode == 0
-    entry = json.loads(r.stdout)
-    assert entry["role"] == "implementer"
-    assert entry["content"] == "<redacted>"
+    entries = _jsonl(r.stdout)
+    assert entries[0]["role"] == "implementer"
+    assert entries[0]["content"] == "<redacted>"
+    assert entries[-1]["content"] == "play-close"
 
 
 def test_parent_kickoff_then_both_roles_see_it(fake_project, stage_game):
@@ -41,12 +60,15 @@ def test_parent_kickoff_then_both_roles_see_it(fake_project, stage_game):
     # Parent appends (no agent_type).
     run_script("append.py", args=["GAME START"],
                project_dir=fake_project, timeout=5)
+    run_script("marker_write.py", args=["play-close"],
+               project_dir=fake_project, timeout=5)
     for role in ("functional-harness:implementer", "functional-harness:tester"):
         r = run_script("monitor.py", agent_type=role,
                        project_dir=fake_project, timeout=5)
-        e = json.loads(r.stdout)
-        assert e["role"] == "orchestrator"
-        assert e["content"] == "GAME START"
+        entries = _jsonl(r.stdout)
+        assert entries[0]["role"] == "orchestrator"
+        assert entries[0]["content"] == "GAME START"
+        assert entries[-1]["content"] == "play-close"
 
 
 def test_full_stop_request_round_trip(fake_project, stage_game):

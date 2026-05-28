@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Monitor — blocking read of the next dialog-log entry for the caller.
+"""Monitor — streams dialog-log entries visible to the caller as they arrive.
 
-Sole sanctioned read path. Blocks until a new entry visible to the caller
-arrives, then prints it as JSON on stdout and advances the caller's cursor
-in the registry.
+Designed for invocation via Claude Code's Monitor tool, NOT Bash. Each new
+entry visible to the caller becomes one stdout line (= one notification),
+in JSON form. The script runs persistently and only exits when:
+  - a terminal marker (play-close / play-abort) is delivered, or
+  - it is killed by TaskStop or the session ending.
 
 Caller role comes from AGENT_TYPE in env (injected by the agent_env_inject
 PreToolUse hook for subagent contexts). Parent calls have no AGENT_TYPE →
@@ -96,15 +98,22 @@ def main() -> int:
 
     while True:
         entries = read_entries(log_path)
+        delivered_any = False
         while cursor < len(entries):
-            projected = project_entry(cursor_key, entries[cursor])
+            entry = entries[cursor]
+            cursor += 1
+            projected = project_entry(cursor_key, entry)
             if projected is None:
-                cursor += 1
                 continue
-            advance_cursor(reg_path, cursor_key, cursor + 1)
-            print(json.dumps(projected))
-            return 0
-        advance_cursor(reg_path, cursor_key, cursor)
+            print(json.dumps(projected), flush=True)
+            delivered_any = True
+            # Terminal marker → end the stream.
+            if (projected.get('role') == 'orchestrator'
+                    and projected.get('content') in ('play-close', 'play-abort')):
+                advance_cursor(reg_path, cursor_key, cursor)
+                return 0
+        if delivered_any or cursor > reg.get('cursors', {}).get(cursor_key, 0):
+            advance_cursor(reg_path, cursor_key, cursor)
         time.sleep(POLL_INTERVAL)
 
 

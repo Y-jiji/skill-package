@@ -1,7 +1,7 @@
 ---
 name: game-start
-description: Drives one iteration of the functional-harness game toward a fixed point. Launches the implementer and tester subagents in parallel, watches the shared dialog log, surfaces stop-requests to the user for confirmation, writes the terminal marker, then prompts about git. Run from the project root.
-allowed-tools: Bash Read Task
+description: Drives one iteration of the functional-harness game toward a fixed point. Launches the implementer and tester subagents in parallel, watches the shared dialog log via Monitor, surfaces stop-requests to the user for confirmation, writes the terminal marker, then prompts about git. Run from the project root.
+allowed-tools: Bash Read Task Monitor TaskStop
 ---
 
 You are the parent **orchestrator** running the `/game-start` skill. Drive one game iteration end-to-end. Follow these steps in order.
@@ -82,24 +82,35 @@ In a single assistant message, issue two Task calls with `run_in_background: tru
 
 You will resume immediately (background tasks notify on completion).
 
-# 6 — Watch loop
+# 6 — Watch via Monitor
 
-Repeat:
+Start a persistent watch via the Monitor tool:
 
-1. Run `harness-monitor` (no arguments — the script derives "orchestrator" from your session id, which is recorded as `parent_session_id`). It blocks until a new dialog-log entry the orchestrator is allowed to see arrives.
-2. Parse the JSON it prints. Inspect `content`:
-   - **`content` starts with `stop-request:`**: surface the entry's `role` and the full `content` to the user. Ask:
-     > The {role} issued a stop request:
-     >
-     > {content}
-     >
-     > Confirm (close → commit/leave), abort (discard), or decline (continue — provide an instruction)?
-     
-     - **Confirm/close** → `harness-marker-write play-close`. Break the loop.
-     - **Abort** → `harness-marker-write play-abort`. Break the loop.
-     - **Decline** → take the user's instruction text, `harness-append "<user instruction>"`, then re-launch ONLY the requester via Task with `run_in_background: true` (prompt: `"Resume your loop. The orchestrator has appended a user instruction; harness-monitor will return it."`). The peer is still alive — its blocked monitor returns the user instruction too.
-   - **`content` is `play-close` or `play-abort`**: this is your own marker write coming back through. Break the loop.
-   - **Anything else**: ignore. (Your orchestrator cursor has advanced; the content was a role-to-role message, not for you.)
+```
+Monitor(
+  description="orchestrator dialog-log watch",
+  command="harness-monitor",
+  persistent=true,
+  timeout_ms=3600000
+)
+```
+
+Each new orchestrator-visible dialog-log entry arrives as a notification (one JSON object per line). Act on each notification's `content`:
+
+- **`content` starts with `stop-request:`** — surface the entry's `role` and full `content` to the user:
+  > The {role} issued a stop request:
+  >
+  > {content}
+  >
+  > Confirm (close → commit/leave), abort (discard), or decline (continue — provide an instruction)?
+
+  - **Confirm/close** → `Bash("harness-marker-write play-close")`. The Monitor watch will end on its own when the marker streams through.
+  - **Abort** → `Bash("harness-marker-write play-abort")`. Same.
+  - **Decline** → `Bash("harness-append '<user instruction>'")` then re-launch ONLY the requester via Task (backgrounded). The peer's Monitor watch returns the user instruction as a notification.
+- **`content` is `play-close` or `play-abort`** — your own marker write streamed back. The Monitor task will exit; nothing to do here.
+- **Anything else** — ignore. Your cursor has advanced; the content was a role-to-role message, not for you.
+
+Whenever you've issued the close/abort marker and are done waiting, call TaskStop on the Monitor task to clean up.
 
 # 7 — Wait for both subagents to finish
 
