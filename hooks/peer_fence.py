@@ -68,11 +68,16 @@ def main() -> None:
     if not peer_stop_open:
         sys.exit(0)
 
-    # Peer has an open stop-request. Only monitor is allowed.
+    # Peer has an open stop-request. Only the monitor call is allowed —
+    # matched by either the shim name `harness-monitor` (what agent prompts
+    # tell roles to invoke) or the script path `monitor.py` (direct
+    # invocation, used in tests).
     tool = event.get('tool_name', '')
     inp = event.get('tool_input', {})
-    if tool == 'Bash' and 'monitor.py' in inp.get('command', ''):
-        sys.exit(0)
+    if tool == 'Bash':
+        cmd = inp.get('command', '')
+        if 'harness-monitor' in cmd or 'monitor.py' in cmd:
+            sys.exit(0)
     deny(f"peer ({peer}) has issued an open stop-request; only the monitor "
          f"command is allowed for {role} until the parent writes a terminal "
          f"marker. Call harness-monitor to wait for the marker.")

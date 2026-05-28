@@ -48,6 +48,25 @@ def test_tester_can_still_call_monitor_after_implementer_stop(fake_project, stag
     assert r.returncode == 0
 
 
+def test_tester_can_still_call_harness_monitor_shim_after_implementer_stop(fake_project, stage_game):
+    """The shim name agents actually invoke per their prompts (no `monitor.py` substring)."""
+    stage_game(log_entries=[_entry("implementer", "stop-request: blocked")])
+    r = run_hook("peer_fence.py",
+                 _bash("functional-harness:tester",
+                       "AGENT_TYPE=functional-harness:tester AGENT_ID=t harness-monitor"),
+                 project_dir=fake_project)
+    assert r.returncode == 0, r.stderr
+
+
+def test_implementer_can_still_call_harness_monitor_shim_after_tester_stop(fake_project, stage_game):
+    stage_game(log_entries=[_entry("tester", "stop-request: blocked")])
+    r = run_hook("peer_fence.py",
+                 _bash("functional-harness:implementer",
+                       "AGENT_TYPE=functional-harness:implementer AGENT_ID=i harness-monitor"),
+                 project_dir=fake_project)
+    assert r.returncode == 0, r.stderr
+
+
 def test_implementer_fenced_after_tester_stop_request(fake_project, stage_game):
     stage_game(log_entries=[_entry("tester", "stop-request: no angle")])
     r = run_hook("peer_fence.py",

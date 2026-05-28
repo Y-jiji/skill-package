@@ -14,6 +14,14 @@ the calling role and whose `file_glob` matches the target file, dispatches
 to the named rule from the catalog (built-in tree-sitter rules or
 custom-script).
 
+When the caller is a harness role (implementer/tester) and the Edit/Write
+passes every applicable rule, this hook emits a PreToolUse `approve`
+decision on stdout. That bypasses Claude's normal permission prompt — which
+is required because subagents launched in the background do not inherit
+the parent session's interactive `acceptEdits` mode. For violations, the
+hook still exits 2 with the reason on stderr. For non-harness callers the
+hook is a no-op (silent pass-through).
+
 Built-in rules:
   - no-line-reduction-in-attribute-item   (rule_params: attribute)
   - no-deletion-of-attribute-item         (rule_params: attribute)
@@ -58,6 +66,11 @@ def load_constraints(root: str) -> list[dict]:
 def deny(reason: str) -> None:
     print(reason, file=sys.stderr)
     sys.exit(2)
+
+
+def approve(reason: str) -> None:
+    print(json.dumps({"decision": "approve", "reason": reason}))
+    sys.exit(0)
 
 
 def compute_post(tool: str, inp: dict, pre: str) -> str | None:
@@ -229,7 +242,7 @@ def main() -> None:
     root = project_root()
     constraints = load_constraints(root)
     if not constraints:
-        sys.exit(0)
+        approve("no write_constraints configured")
 
     try:
         rel_path = os.path.relpath(path, root)
@@ -244,7 +257,9 @@ def main() -> None:
 
     post = compute_post(tool, inp, pre)
     if post is None:
-        sys.exit(0)
+        # Edit's old_string isn't in pre; the call will fail downstream.
+        # Approve so we don't shadow that error with a permission denial.
+        approve("Edit will fail downstream; not a write_constraints concern")
 
     for c in constraints:
         if c.get('applies_to') != role:
@@ -255,7 +270,7 @@ def main() -> None:
         violation = apply_rule(c, pre, post, path, role)
         if violation:
             deny(f"write_constraints['{c.get('name', '?')}']: {violation}")
-    sys.exit(0)
+    approve(f"write_constraints rules passed for role {role}")
 
 
 if __name__ == '__main__':

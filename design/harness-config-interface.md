@@ -112,7 +112,7 @@ The script must be self-contained: it cannot read the dialog log or registry (th
 | Hook | Field read | Effect |
 |---|---|---|
 | `role_bash_allowlist.py` | `tester_bash_allowlist`, `implementer_bash_allowlist` | denies a role's Bash calls that are neither a harness script nor match a pattern in that role's allowlist |
-| `write_constraints.py` | `write_constraints` | for each applicable entry, parses pre/post with tree-sitter (or invokes a custom script) and applies the rule; denies on violation |
+| `write_constraints.py` | `write_constraints` | for each applicable entry, parses pre/post with tree-sitter (or invokes a custom script) and applies the rule; denies on violation. On pass for harness-role callers, additionally emits a PreToolUse `approve` decision so background subagents bypass Claude's permission gate — see [hooks.md → Pre-approving harness-role Edit/Write at the permission layer](hooks.md). |
 
 ## Precondition for `/game-start`
 

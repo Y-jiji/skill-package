@@ -217,7 +217,8 @@ def test_custom_script_allows(fake_project, stage_game, settings_writer, tmp_pat
 
 
 def test_parent_pass_through(fake_project, stage_game, settings_writer, tmp_path):
-    """No agent_type → parent → constraints skipped."""
+    """No agent_type → parent → constraints skipped, and NO approve emitted
+    (parent uses Claude's normal permission flow)."""
     stage_game()
     settings_writer(write_constraints=[{
         "name": "impl-only",
@@ -236,3 +237,103 @@ def test_parent_pass_through(fake_project, stage_game, settings_writer, tmp_path
         fake_project,
     )
     assert r.returncode == 0
+    assert "approve" not in r.stdout
+
+
+def _decision(stdout):
+    try:
+        return json.loads(stdout.strip())
+    except json.JSONDecodeError:
+        return None
+
+
+def test_harness_role_pass_emits_approve(fake_project, stage_game,
+                                          settings_writer, tmp_path):
+    """When the call passes all applicable rules, emit a PreToolUse approve
+    decision so background subagents (no acceptEdits inheritance) get past
+    Claude's permission gate."""
+    stage_game()
+    settings_writer(write_constraints=[{
+        "name": "rust-no-test-line-reduction",
+        "applies_to": "implementer",
+        "file_glob": "**/*.rs",
+        "tree_sitter_language": "rust",
+        "rule": "no-line-reduction-in-attribute-item",
+        "rule_params": {"attribute": "test"},
+    }])
+    target = tmp_path / "src" / "lib.rs"
+    target.parent.mkdir()
+    pre = "#[test]\nfn t1() {\n    assert_eq!(1, 1);\n}\n"
+    target.write_text(pre)
+    post = "#[test]\nfn t1() {\n    assert_eq!(1, 1);\n    assert_eq!(2, 2);\n}\n"
+    r = _run_constraint_hook(
+        _write_event("functional-harness:implementer", str(target), post),
+        fake_project,
+    )
+    assert r.returncode == 0
+    d = _decision(r.stdout)
+    assert d == {"decision": "approve", "reason": d["reason"]}, r.stdout
+
+
+def test_harness_role_with_no_constraints_emits_approve(fake_project, stage_game,
+                                                          settings_writer, tmp_path):
+    """Empty config still pre-approves harness-role writes — the harness
+    has taken responsibility for the gate."""
+    stage_game()
+    settings_writer(write_constraints=[])
+    target = tmp_path / "foo.rs"
+    r = _run_constraint_hook(
+        _write_event("functional-harness:implementer", str(target), "fn main() {}"),
+        fake_project,
+    )
+    assert r.returncode == 0
+    assert _decision(r.stdout) is not None
+    assert _decision(r.stdout)["decision"] == "approve"
+
+
+def test_glob_mismatch_for_harness_role_emits_approve(fake_project, stage_game,
+                                                       settings_writer, tmp_path):
+    """No applicable rule for the role+path still approves the role."""
+    stage_game()
+    settings_writer(write_constraints=[{
+        "name": "only-rs",
+        "applies_to": "implementer",
+        "file_glob": "**/*.rs",
+        "tree_sitter_language": "rust",
+        "rule": "no-line-reduction-in-attribute-item",
+        "rule_params": {"attribute": "test"},
+    }])
+    target = tmp_path / "foo.py"
+    target.write_text("")
+    r = _run_constraint_hook(
+        _write_event("functional-harness:implementer", str(target), "anything"),
+        fake_project,
+    )
+    assert r.returncode == 0
+    assert _decision(r.stdout) is not None
+    assert _decision(r.stdout)["decision"] == "approve"
+
+
+def test_violation_still_denies_via_exit_2(fake_project, stage_game,
+                                             settings_writer, tmp_path):
+    """Approve emission must not weaken denial behavior."""
+    stage_game()
+    settings_writer(write_constraints=[{
+        "name": "rust-no-test-line-reduction",
+        "applies_to": "implementer",
+        "file_glob": "**/*.rs",
+        "tree_sitter_language": "rust",
+        "rule": "no-line-reduction-in-attribute-item",
+        "rule_params": {"attribute": "test"},
+    }])
+    target = tmp_path / "src" / "lib.rs"
+    target.parent.mkdir()
+    pre = "#[test]\nfn t1() {\n    assert_eq!(1, 1);\n    assert_eq!(2, 2);\n    assert_eq!(3, 3);\n}\n"
+    target.write_text(pre)
+    post = "#[test]\nfn t1() {\n    assert_eq!(1, 1);\n}\n"
+    r = _run_constraint_hook(
+        _write_event("functional-harness:implementer", str(target), post),
+        fake_project,
+    )
+    assert r.returncode == 2
+    assert "approve" not in r.stdout
