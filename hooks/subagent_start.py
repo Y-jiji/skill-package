@@ -25,10 +25,17 @@ def main() -> None:
     cwd = event.get('cwd', '') or os.getcwd()
     agent = event.get('agent_name') or event.get('agent_type', '')
 
-    # Always write the per-PPID session-id file, regardless of agent type —
-    # subagents may call harness scripts even outside the implementer/tester
-    # roles, and the file is harmless either way.
+    # Plumb session id via CLAUDE_ENV_FILE if available (primary path) and
+    # via the per-PPID session file (fallback) — same scheme as session_start.py.
     if session_id:
+        env_file = os.environ.get('CLAUDE_ENV_FILE', '')
+        if env_file:
+            try:
+                with open(env_file, 'a') as f:
+                    f.write(f'export CLAUDE_SESSION_ID={session_id}\n')
+                    f.write(f'export CLAUDE_PROJECT_DIR={cwd}\n')
+            except OSError:
+                pass
         try:
             with open(f"/tmp/claude-session-{os.getppid()}.json", 'w') as f:
                 json.dump({'session_id': session_id, 'cwd': cwd}, f)

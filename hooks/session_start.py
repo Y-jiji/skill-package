@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""SessionStart hook — writes the calling session's id and cwd to a per-PPID
-file so harness scripts invoked via Bash can learn the session id.
+"""SessionStart hook — exports CLAUDE_SESSION_ID into the session's
+persistent env so every subsequent Bash subprocess inherits it.
 
-Claude Code does not propagate CLAUDE_SESSION_ID into Bash subprocess env,
-but hook subprocesses receive session_id via stdin JSON and they share the
-same PPID as Bash subprocesses (both are direct children of the Claude Code
-session process). Writing the session_id at `/tmp/claude-session-<PPID>.json`
-where PPID is the Claude Code process gives Bash subprocesses a known
-location to read it from.
+Primary mechanism: write `export CLAUDE_SESSION_ID=<id>` (and
+`CLAUDE_PROJECT_DIR=<cwd>`) into the file pointed at by $CLAUDE_ENV_FILE.
+Claude Code sources that file into all subsequent Bash tool subprocesses
+within this session. Available only on SessionStart / Setup / CwdChanged /
+FileChanged hooks per the docs.
 
-Fires on every SessionStart variant (startup, resume, clear, compact).
-SubagentStart sessions are handled by subagent_start.py (which writes the
-same file format for the subagent's PPID).
+Fallback: also write a per-PPID session file (/tmp/claude-session-<PPID>.json)
+so scripts can walk the PPID chain in cases where the env-file pathway is
+unavailable (e.g. sessions started before this hook was installed; bash
+calls outside the Claude Code-managed subprocess pool).
 """
 import json
 import os
@@ -24,10 +24,21 @@ def main() -> None:
     cwd = event.get('cwd', '') or os.getcwd()
     if not session_id:
         sys.exit(0)
-    ppid = os.getppid()
-    path = f"/tmp/claude-session-{ppid}.json"
+
+    # Primary: write into CLAUDE_ENV_FILE so subsequent bash subprocesses
+    # see the env var.
+    env_file = os.environ.get('CLAUDE_ENV_FILE', '')
+    if env_file:
+        try:
+            with open(env_file, 'a') as f:
+                f.write(f'export CLAUDE_SESSION_ID={session_id}\n')
+                f.write(f'export CLAUDE_PROJECT_DIR={cwd}\n')
+        except OSError:
+            pass
+
+    # Fallback: per-PPID file for the PPID-walking path in harness scripts.
     try:
-        with open(path, 'w') as f:
+        with open(f"/tmp/claude-session-{os.getppid()}.json", 'w') as f:
             json.dump({'session_id': session_id, 'cwd': cwd}, f)
     except OSError:
         pass
