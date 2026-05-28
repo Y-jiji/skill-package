@@ -29,6 +29,10 @@ A language template, in this design corpus, is a design doc with three required 
 
 `/configure` reads the template doc with `Read`, extracts the config block, and uses it as the starting point.
 
+## Why no permission tweaks are needed
+
+`/configure` writes only the `functional-harness` namespace in `.claude/settings.json`. It does *not* write anything under Claude Code's `permissions.allow` block, and the harness intentionally doesn't require any such entries. The harness's own PreToolUse hooks (`write_constraints`, `role_bash_allowlist`) emit `{"decision": "approve", "reason": ...}` whenever they accept a harness-role tool call, which bypasses Claude's permission gate. This is how the harness lets backgrounded subagents — which don't inherit the parent session's runtime `acceptEdits` mode — perform Edit, Write, and the allowlisted Bash commands without an interactive approval. The decision rule is "approve iff the harness rules accept, deny iff any rule denies," so the namespace fences and Bash allowlists remain the single source of truth, and the user doesn't have to mirror them into Claude's permission settings. (See [hooks.md → Pre-approving harness-role Edit/Write at the permission layer](hooks.md).)
+
 ## Why a skill rather than runtime language detection
 
 The plugin keeps no built-in per-language branches in the hook runtime. Detection happens once, at configure time, with the user in the loop and the result persisted to `.claude/settings.json`. This is deliberate:

@@ -5,6 +5,13 @@
 Caller role is identified directly from `agent_type` in the hook event.
 Parent (no agent_type) is not fenced. Harness scripts (harness-monitor,
 harness-append, harness-marker-write) are always allowed.
+
+When a Bash call is permitted for a harness role, emits a PreToolUse
+`approve` decision on stdout. This mirrors write_constraints' approval
+channel and ensures background subagents — which don't inherit the parent
+session's interactive permission state — can run the allowlisted commands
+without hitting Claude's permission prompt. Denials still exit 2; non-
+harness callers pass through silently.
 """
 import json
 import os
@@ -42,6 +49,11 @@ def deny(reason: str) -> None:
     sys.exit(2)
 
 
+def approve(reason: str) -> None:
+    print(json.dumps({"decision": "approve", "reason": reason}))
+    sys.exit(0)
+
+
 def main() -> None:
     try:
         event = json.load(sys.stdin)
@@ -56,13 +68,13 @@ def main() -> None:
     cmd = (event.get('tool_input') or {}).get('command', '').strip()
     for token in ALWAYS_ALLOWED_TOKENS:
         if token in cmd:
-            sys.exit(0)
+            approve(f"harness script ({token}) is always allowed")
 
     patterns = load_allowlist(role)
     for pat in patterns:
         try:
             if re.match(pat, cmd):
-                sys.exit(0)
+                approve(f"matched {role}_bash_allowlist pattern {pat!r}")
         except re.error:
             continue
 
