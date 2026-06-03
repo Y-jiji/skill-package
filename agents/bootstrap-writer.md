@@ -12,13 +12,22 @@ You are the **bootstrap writer**. Each call operates in exactly one mode, declar
 ---
 doc_id: <kebab-name>
 claims:
-  - <relative-file-path>
+  - <relative-source-file-path>
+tests:
+  - <relative-test-path>
 neighbors:
   - <other-doc-id>
 ---
 ```
 
-`claims` must list real file paths. `neighbors` must reference docs that exist (or that you are creating in the same call). The ledger parses these fields exactly — no extra YAML keys, no fancy nesting.
+`claims` must list real source file paths owned by this concern (the
+implementer's write territory for this unit at game time). `tests` must
+list test paths owned by this concern (the tester's write territory; one
+file per unit, or a directory like `tests/<unit_id>/`); on a fresh
+codebase with no tests yet, declare the path you expect tests to live at
+so game-time tooling has a place for them. `neighbors` must reference docs
+that exist (or that you are creating in the same call). The ledger parses
+these fields exactly — no extra YAML keys, no fancy nesting.
 
 # Doc body (after frontmatter)
 

@@ -58,7 +58,7 @@ def parse_frontmatter(path: pathlib.Path) -> dict:
             cur_key = k.strip()
             v = v.strip()
             fm[cur_key] = v if v else []
-    for k in ("claims", "neighbors"):
+    for k in ("claims", "tests", "neighbors"):
         fm.setdefault(k, [])
         v = fm[k]
         if isinstance(v, str):

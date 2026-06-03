@@ -58,119 +58,80 @@ discarded.
 ```json
 {
   "kind": "tester-report",
-  "failing_tests": [
-    {
-      "test_id": "<name or path>",
-      "design_citation": {
-        "file": "design/foo.md",
-        "line_range": [12, 18],
-        "quoted_rule": "<exact text copied from the cited lines>"
-      },
-      "violation_summary": "<one line: which rule, how the impl misses it>"
+  "findings": {
+    "<unit_id>": {
+      "unit_clean": true,
+      "rules_checked": [
+        {"file": "design/foo.md", "line_range": [12, 18], "quoted_rule": "..."}
+      ]
+    },
+    "<unit_id>": {
+      "failing_test": {
+        "test_id": "<name or path>",
+        "design_citation": {"file": "...", "line_range": [...], "quoted_rule": "..."},
+        "violation_summary": "<one line: which rule, how the impl misses it>"
+      }
+    },
+    "<unit_id>": {
+      "interface_request": {
+        "needed": "<signature>",
+        "module": "<path>",
+        "design_citation": {"file": "...", "line_range": [...], "quoted_rule": "..."}
+      }
     }
-  ],
-  "interface_requests": [
-    {
-      "needed": "<signature>",
-      "module": "<path>",
-      "design_citation": { "file": "...", "line_range": [...], "quoted_rule": "..." }
-    }
-  ],
-  "tests_authored": ["tests/x.rs", "tests/y.rs"],
+  },
   "stop_request": null
 }
 ```
 
-- `tests_authored`: the full set of test files the tester owns at end
-  of round (cumulative, not just files written this round). The
-  orchestrator unions this into the registry's `tests_authored` field
-  and threads it back into the next round's tester prompt so the next
-  (fresh) tester subagent doesn't re-author or delete its own prior
-  tests.
-
-- Every `failing_tests` entry and every `interface_requests` entry **must**
-  carry a `design_citation`. The primary verifies the cited file exists at the
-  given lines and the `quoted_rule` text appears there verbatim (cheap grep).
-  A report failing verification is rejected; the primary re-prompts the tester
-  with the specific reject reason ("citation does not exist at design/foo.md
-  lines 12-18") rather than passing the report to the implementer.
+- `findings` is keyed by `unit_id` and must contain exactly one entry per
+  unit in the round's affected slice — no more, no less. Each entry has
+  exactly one of `unit_clean`, `failing_test`, `interface_request`.
+- `unit_clean` entries mark the unit green in the ledger; the orchestrator
+  applies this via [skills/game-start/ledger.py apply-tester](../skills/game-start/ledger.py).
+- Every citation (whether in a finding or in `unit_clean.rules_checked`)
+  is verified verbatim against the cited design file.
 - `stop_request`: `null` for a normal report, or
-  `{ "summary": "<prose>", "rules_checked": [<citations>] }`. The
-  `rules_checked` enumeration is required so a stop request is verifiable: it
-  asserts which design rules the tester probed and could not break. The
-  primary spot-checks the citations the same way it checks failure citations.
+  `{ "summary": "<prose>", "rules_checked": [<citations>] }` when the
+  tester believes the design is unsatisfiable.
 
 ## Prompt construction (deterministic)
 
 ### Tester prompt
 
-Inputs: `design/` paths (always all of them, with line counts), `files_touched`
-from the previous implementer return (or "first round, full code state" on
-round 1), the project's `tester_bash_allowlist` summary, the project's
-`role_policy.tester` hints (templated verbatim — these are not citation-
-required design rules but per-project test discipline; see
-[harness-config-interface.md → `role_policy`](harness-config-interface.md)),
-and the `tests_authored` carryover list.
+Inputs: the **affected slice** from the unit ledger (every non-green unit
+with its `unit_id`, `design_path`, `claims`, `tests`, `neighbors`, and
+`neighbor_claims`), the previous round's `files_touched`, the project's
+`tester_bash_allowlist`, the project's `role_policy.tester` hints
+(templated verbatim).
 
-Template (sketch):
-
-```
-You are the tester. Round N of game <id>.
-
-Design docs (all):
-  design/a.md (84 lines)
-  design/b.md (210 lines)
-  ...
-
-Implementation changes since your last round:
-  src/foo.rs
-  src/bar.rs
-  (Round 1: full code state — read what's relevant.)
-
-Your task: produce one tester-report JSON block (schema in agent definition).
-Cite design rules verbatim for every failing test and every interface request.
-```
+The prompt iterates the affected list and inlines for each unit: design
+rules from `design_path`, the unit's `claims`/`tests`/`neighbors`, and any
+`carried_finding` the orchestrator pulled from the ledger (the
+implementer's response to the previous round's open finding for this unit).
 
 **What is not in this prompt**: the implementer's `report_to_user`, any
-implementer prose at all, any tester prose from prior rounds. The tester
-reasons from `design/`, source code, and the structured `files_touched` list.
+implementer prose, any tester prose from prior rounds, design docs for
+green (non-affected) units, or any unit's claims outside the affected
+slice (except neighbor read-only context).
 
 ### Implementer prompt
 
-Inputs: `design/` paths, the tester's `failing_tests` and `interface_requests`
-from the same round, the project's `implementer_bash_allowlist` summary,
-the project's `role_policy.implementer` hints (templated verbatim — per-
-project implementer discipline, e.g. API design preferences; see
-[harness-config-interface.md → `role_policy`](harness-config-interface.md)),
-and any user instruction from a declined stop request.
+Inputs: the affected slice (the same units the tester just left non-green),
+the verified per-unit `failing_test` / `interface_request` carried by the
+ledger, the project's `implementer_bash_allowlist`, the project's
+`role_policy.implementer` hints, and any user instruction.
 
-Template (sketch):
+The prompt iterates the affected list and inlines for each unit: design
+rules from `design_path`, the unit's `claims` (write territory) and
+`neighbor_claims` (read-only context), and the carried finding's verified
+citation. The implementer's write territory for the round is the union of
+all affected `claims`.
 
-```
-You are the implementer. Round N of game <id>.
-
-Design docs (all):
-  design/a.md
-  ...
-
-Tester findings this round:
-  Failing test "parses_empty_header" — violates design/parser.md:14-19
-    "The header parser MUST accept zero-length input as a valid empty header."
-  Interface request — pub fn parse_header in src/parser.rs, required to probe
-    design/parser.md:30-35 "parse_header must be callable with a byte slice."
-
-[Optional, if present:]
-User instruction (after declined stop request):
-  <instruction text>
-
-Your task: produce one implementer-move JSON block. Make the failing tests
-pass; expose requested interfaces; do not modify design/.
-```
-
-The tester's prose (`violation_summary`) is included because it was produced by
+The tester's `violation_summary` is included because it was produced by
 the tester from cited design rules — it is not implementer-originated. The
-citation itself is included verbatim so the implementer reasons from the design
-rule, not from the tester's paraphrase.
+citation is included verbatim so the implementer reasons from the design
+rule, not the paraphrase.
 
 ## Verification step
 

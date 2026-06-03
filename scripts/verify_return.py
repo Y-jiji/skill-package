@@ -112,43 +112,63 @@ def verify_tester(payload: dict, design_dir: Path) -> None:
     errors: list[str] = []
     if payload.get('kind') != 'tester-report':
         errors.append("kind must be 'tester-report'")
-    ft = payload.get('failing_tests', [])
-    ir = payload.get('interface_requests', [])
+    findings = payload.get('findings', {})
+    if not isinstance(findings, dict):
+        errors.append("findings must be an object keyed by unit_id")
+        findings = {}
+    for uid, entry in findings.items():
+        if not isinstance(uid, str) or not uid:
+            errors.append(f"findings has non-string key {uid!r}")
+            continue
+        if not isinstance(entry, dict):
+            errors.append(f"findings[{uid}] must be an object")
+            continue
+        kinds = [k for k in ("unit_clean", "failing_test", "interface_request")
+                 if k in entry]
+        if len(kinds) != 1:
+            errors.append(f"findings[{uid}] must have exactly one of "
+                          f"unit_clean, failing_test, interface_request; got {kinds}")
+            continue
+        if "unit_clean" in entry:
+            if entry["unit_clean"] is not True:
+                errors.append(f"findings[{uid}].unit_clean must be true")
+            rc = entry.get("rules_checked", [])
+            if not isinstance(rc, list) or not rc:
+                errors.append(f"findings[{uid}].rules_checked must be a non-empty list")
+            else:
+                for i, c in enumerate(rc):
+                    err = check_citation(c, design_dir,
+                                         f"findings[{uid}].rules_checked[{i}]")
+                    if err:
+                        errors.append(err)
+        elif "failing_test" in entry:
+            ft = entry["failing_test"]
+            if not isinstance(ft, dict):
+                errors.append(f"findings[{uid}].failing_test must be an object")
+            else:
+                if not isinstance(ft.get("test_id"), str) or not ft["test_id"]:
+                    errors.append(f"findings[{uid}].failing_test.test_id missing")
+                if not isinstance(ft.get("violation_summary"), str):
+                    errors.append(f"findings[{uid}].failing_test.violation_summary missing")
+                err = check_citation(ft.get("design_citation", {}), design_dir,
+                                     f"findings[{uid}].failing_test")
+                if err:
+                    errors.append(err)
+        else:  # interface_request
+            ir = entry["interface_request"]
+            if not isinstance(ir, dict):
+                errors.append(f"findings[{uid}].interface_request must be an object")
+            else:
+                if not isinstance(ir.get("needed"), str) or not ir["needed"]:
+                    errors.append(f"findings[{uid}].interface_request.needed missing")
+                if not isinstance(ir.get("module"), str):
+                    errors.append(f"findings[{uid}].interface_request.module missing")
+                err = check_citation(ir.get("design_citation", {}), design_dir,
+                                     f"findings[{uid}].interface_request")
+                if err:
+                    errors.append(err)
+
     sr = payload.get('stop_request')
-    if not isinstance(ft, list):
-        errors.append("failing_tests must be a list")
-        ft = []
-    if not isinstance(ir, list):
-        errors.append("interface_requests must be a list")
-        ir = []
-    for i, e in enumerate(ft):
-        if not isinstance(e, dict):
-            errors.append(f"failing_tests[{i}] must be an object")
-            continue
-        if not isinstance(e.get('test_id'), str) or not e['test_id']:
-            errors.append(f"failing_tests[{i}].test_id missing")
-        if not isinstance(e.get('violation_summary'), str):
-            errors.append(f"failing_tests[{i}].violation_summary missing")
-        err = check_citation(e.get('design_citation', {}), design_dir,
-                             f"failing_tests[{i}]")
-        if err:
-            errors.append(err)
-    for i, e in enumerate(ir):
-        if not isinstance(e, dict):
-            errors.append(f"interface_requests[{i}] must be an object")
-            continue
-        if not isinstance(e.get('needed'), str) or not e['needed']:
-            errors.append(f"interface_requests[{i}].needed missing")
-        if not isinstance(e.get('module'), str):
-            errors.append(f"interface_requests[{i}].module missing")
-        err = check_citation(e.get('design_citation', {}), design_dir,
-                             f"interface_requests[{i}]")
-        if err:
-            errors.append(err)
-    # tests_authored: list of paths the tester wrote/owns
-    ta = payload.get('tests_authored', [])
-    if not isinstance(ta, list) or not all(isinstance(x, str) for x in ta):
-        errors.append("tests_authored must be a list of strings (may be empty)")
     if sr is not None:
         if not isinstance(sr, dict):
             errors.append("stop_request must be null or an object")
