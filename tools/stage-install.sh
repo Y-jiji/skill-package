@@ -42,6 +42,22 @@ tar -C "$SOURCE" -cf - \
   . | tar -C "$STAGING" -xf -
 echo "Staged: $SOURCE -> $STAGING"
 
+# Wipe any leftover per-project harness runtime state. Dev iteration is
+# the only time this script runs; stale registries/transcripts from a
+# previous harness version can carry schemas the new code doesn't
+# understand. Anyone running stage-install accepts this.
+if [ -d /tmp/functional-harness ]; then
+  echo "Wiping /tmp/functional-harness (stale registries from prior runs)"
+  rm -rf /tmp/functional-harness
+fi
+shopt -s nullglob
+stale_transcripts=(/tmp/transcript-*.jsonl)
+if [ ${#stale_transcripts[@]} -gt 0 ]; then
+  echo "Wiping ${#stale_transcripts[@]} stale transcript file(s) under /tmp"
+  rm -f "${stale_transcripts[@]}"
+fi
+shopt -u nullglob
+
 # Best-effort refresh — silent if the marketplace/plugin isn't registered yet.
 if claude plugin marketplace list 2>/dev/null | grep -q "$MARKETPLACE"; then
   claude plugin marketplace update "$MARKETPLACE" >/dev/null
