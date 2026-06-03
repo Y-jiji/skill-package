@@ -6,17 +6,23 @@ implements: critic agent
 
 # Bootstrap critic agent
 
-Reads only the concern docs produced by the writer agent and identifies concern boundary violations. Has no access to the codebase.
+Reviews one doc at a time. Has no access to code and no access to other docs except through the boundary summaries the orchestrator hand-feeds it.
 
 ## Interface
 
-- **Input**: concern docs from the writer agent
-- **Output**: specific violations, or a no-violation signal
-- **Contract**: issues criticism iff it can identify a specific violation; stops automatically when no violation can be found
+- **Input**: one doc's full contents, plus a short boundary summary (responsibility + interface) for each declared neighbor
+- **Output**: structured JSON — either `{"clean": true}` or `{"violations": [...]}`
+- **Contract**: issues criticism iff it can identify a specific violation on this doc; never asks for code or for non-neighbor docs
 
 ## Violations it checks for
 
-- A doc's contract leaks implementation detail — it cannot be reimplemented without reading the code
-- Two docs define overlapping contracts — the same concern appears in both
-- A doc's dependencies are circular or undefined
-- A doc's boundary is too coarse — it conflates concerns that would change independently
+Local (this doc alone):
+- The contract leaks implementation detail — could not be reimplemented from the doc alone.
+- The boundary is coarse — bundles concerns that would change independently.
+- The claim set in the frontmatter is not justified by the prose (catches silent prose deletion).
+
+Pairwise (this doc against each declared neighbor):
+- Overlapping contracts — the same concern appears in both.
+- Stale or circular dependency — the neighbor summary contradicts what this doc declares.
+
+The full-graph "are there cycles" question is not the critic's responsibility; it falls out of every edge being checked locally across iterations.

@@ -16,32 +16,60 @@ Bootstrap is exposed as a standalone skill (`/bootstrap`), invoked by the user w
 - **Output**: `design_docs_v1` written to `design/`
 - **Contract**: inferred docs must be a valid input to `g`; need not be complete or minimal
 
+## Slicing principle
+
+Neither writer nor critic ever holds "all docs" or "all code" in context at once after the seed step. Every subagent call operates on a single slice. The orchestrator maintains a ledger that tracks per-doc freshness and per-region claims; the loop drives the ledger to a fixed point.
+
+## Ledger
+
+State held by the orchestrator (persisted as a JSON file between subagent calls):
+
+```
+docs:       { doc_id → { path, claims: [region], neighbors: [doc_id], fresh: bool } }
+claims_map: { region → doc_id }              # inverse index over docs.claims (no region maps to two docs)
+unclaimed:  [region]                          # queue of regions with no claimant
+```
+
+A `region` is a file path (granularity may be refined later to `file:symbol`). The seed step establishes a total partition of regions across docs; the loop preserves the invariant `keys(claims_map) ∪ unclaimed = regions_known`.
+
+## Slice types
+
+- **CriticSlice(doc)** — critic reviews one doc against its declared neighbors' boundary summaries. No code access. No access to non-neighbor docs.
+- **WriterReviseSlice(doc, violations)** — writer revises one doc, reading only that doc's code slice.
+- **CoverageSlice(region, candidate_neighbors)** — writer decides whether `region` extends an existing doc or seeds a new one.
+
 ## Process
 
-1. **Cluster**: identify usage clusters from `code_current`
-2. **Iterate**: writer agent produces concern docs; critic agent reads only the docs and pushes back; repeat until critic finds no issues — termination is automatic, no user confirmation required
-3. **Output**: finalized docs written to `design/`
+1. **Seed** (one horizontal pass, the only one allowed):
+   - Cluster analyzer partitions `code_current` into disjoint clusters.
+   - Writer emits one doc per cluster with `claims` covering every region. Orchestrator validates union-equals-partition; rejects otherwise.
+   - Initialize ledger: every doc `fresh = false`; `unclaimed = []`.
 
-## Mechanism
+2. **Iterate** (one slice per iteration):
+   - If `unclaimed` non-empty: pop a region, dispatch `CoverageSlice`.
+   - Else if any doc has `fresh == false`: dispatch `CriticSlice` on it.
+     - Critic clean → set `doc.fresh = true`.
+     - Critic violations → dispatch `WriterReviseSlice(doc, violations)` next iteration.
+   - After every writer call (revise or coverage), diff the affected doc's claims:
+     - Dropped regions → `unclaimed`.
+     - Absorbed regions → reassigned in `claims_map`; prior claimant invalidated (`fresh = false`).
+     - Revised doc itself → `fresh = false` (this catches silent prose deletion: the doc must re-pass critic).
+     - Old and new neighbors of the revised doc → `fresh = false` (ripple).
 
-Bootstrap runs in-skill: the bootstrap skill orchestrates the writer and critic itself by calling them as subagents sequentially via the Task tool, capturing each output, and feeding it into the next call. Bootstrap does not use the registry or any other game-time infrastructure — those exist only for the implementer/tester game.
+3. **Terminate**: when every doc has `fresh == true` and `unclaimed == []`.
 
 ## Sub-components
 
-### Cluster analyzer
+### Cluster analyzer (seed only)
 
 - **Input**: `code_current`
-- **Output**: usage clusters — sets of functions with their call co-occurrence patterns
-- **Contract**: functions that are almost always used together belong to the same cluster; clusters are disjoint
+- **Output**: a partition of regions into disjoint clusters
+- **Contract**: every region appears in exactly one cluster
 
-### Writer agent
+### Writer agent (sliced after seed)
 
-- **Input**: usage clusters, critic feedback from previous iteration
-- **Output**: concern docs — one per cluster, declaring boundary, responsibility, and inter-cluster dependencies
-- **Contract**: the abstracted interface must be sufficient to reimplement the cluster passing all its tests without reading the original code
+See [bootstrap-writer.md](bootstrap-writer.md).
 
-### Critic agent
+### Critic agent (sliced from iteration 1)
 
-- **Input**: concern docs only — no access to code
-- **Output**: criticism identifying concern boundary violations, overlapping contracts, or interfaces that leak implementation detail
-- **Contract**: issues criticism iff it can identify a specific violation; stops when no violation can be found
+See [bootstrap-critic.md](bootstrap-critic.md).
