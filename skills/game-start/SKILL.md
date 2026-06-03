@@ -111,6 +111,8 @@ registry plus disk):
   previously authored — pass this in so the fresh subagent doesn't
   re-author or delete its own prior tests).
 - The `tester_bash_allowlist` patterns.
+- `role_policy.tester` from `.claude/settings.json` (per-project test
+  discipline hints — templated verbatim, no citation required).
 - `pending_user_instruction` if its `role == "tester"` (otherwise null).
 
 Template:
@@ -141,6 +143,12 @@ User instruction (after declined stop request):
 Bash allowlist (your patterns):
   <pattern 1>
   <pattern 2>
+
+[If role_policy.tester is non-empty:]
+Project test policy (follow these as you write/structure tests):
+  - <hint 1>
+  - <hint 2>
+  ...
 
 Your task: per your subagent definition, produce one tester-report JSON
 block. Cite design rules verbatim for every failing test and every
@@ -194,6 +202,8 @@ Build the implementer prompt:
 - Design files list.
 - The tester's verified `failing_tests` and `interface_requests` (just
   the structured fields and citations).
+- `role_policy.implementer` from `.claude/settings.json` (per-project
+  implementer discipline hints — templated verbatim).
 - `pending_user_instruction` if its `role == "implementer"`.
 
 Template:
@@ -212,6 +222,12 @@ Tester findings this round:
   Interface request — <needed> in <module>, required to probe
     design/<file>:<start>-<end>
     "<quoted_rule>"
+  ...
+
+[If role_policy.implementer is non-empty:]
+Project implementer policy (follow these as you change code):
+  - <hint 1>
+  - <hint 2>
   ...
 
 [If pending user instruction for implementer:]

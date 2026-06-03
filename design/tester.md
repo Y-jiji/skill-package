@@ -23,6 +23,9 @@ Delivered by the prompt builder ([prompt-builder.md](prompt-builder.md)):
 - `design_docs_v2` (paths to all design files, with line counts).
 - The previous round's `files_touched` from the implementer (round 1: "full
   code state").
+- Carried `tests_authored` paths (across rounds).
+- Per-project `role_policy.tester` hints (test discipline, templated
+  verbatim — see [harness-config-interface.md](harness-config-interface.md)).
 - Optional user instruction (when this round is a re-invocation after a
   declined stop request from the tester).
 

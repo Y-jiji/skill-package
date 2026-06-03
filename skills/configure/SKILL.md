@@ -38,6 +38,7 @@ Show the chosen template config to the user. Ask if they want to:
 - Add/remove `tester_bash_allowlist` patterns (regex form like `^pytest(\s|$)`)
 - Add `implementer_bash_allowlist` patterns (rare — the implementer defaults to harness scripts only; the field's absence keeps it that way)
 - Add/remove/edit `write_constraints` entries
+- Add/remove/edit `role_policy.tester` and `role_policy.implementer` hints (one-line per-project discipline rules templated verbatim into each role's prompt — see `harness-config-interface.md` for the field shape)
 
 For custom write constraints, walk the user through each field — `name`, `applies_to` (`implementer` or `tester`), `file_glob`, `tree_sitter_language` (only `rust` is bundled in the built-in rules — for other languages they'll need `custom-script`), `rule`, `rule_params`. The rule catalog and `custom-script` invocation contract are in `${CLAUDE_PLUGIN_ROOT}/design/harness-config-interface.md` — `Read` it on demand if the user needs reference.
 

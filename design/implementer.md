@@ -22,6 +22,8 @@ Delivered by the prompt builder ([prompt-builder.md](prompt-builder.md)):
 - `design_docs_v2` (paths only — the implementer reads files it needs).
 - The current round's verified tester findings: `failing_tests` (with
   citations) and `interface_requests` (with citations).
+- Per-project `role_policy.implementer` hints (style/discipline,
+  templated verbatim — see [harness-config-interface.md](harness-config-interface.md)).
 - Optional user instruction (when this round is a re-invocation after a
   declined stop request from the implementer).
 

@@ -106,7 +106,11 @@ discarded.
 
 Inputs: `design/` paths (always all of them, with line counts), `files_touched`
 from the previous implementer return (or "first round, full code state" on
-round 1), the project's `tester_bash_allowlist` summary.
+round 1), the project's `tester_bash_allowlist` summary, the project's
+`role_policy.tester` hints (templated verbatim — these are not citation-
+required design rules but per-project test discipline; see
+[harness-config-interface.md → `role_policy`](harness-config-interface.md)),
+and the `tests_authored` carryover list.
 
 Template (sketch):
 
@@ -134,8 +138,11 @@ reasons from `design/`, source code, and the structured `files_touched` list.
 ### Implementer prompt
 
 Inputs: `design/` paths, the tester's `failing_tests` and `interface_requests`
-from the same round, the project's `implementer_bash_allowlist` summary, and
-any user instruction from a declined stop request.
+from the same round, the project's `implementer_bash_allowlist` summary,
+the project's `role_policy.implementer` hints (templated verbatim — per-
+project implementer discipline, e.g. API design preferences; see
+[harness-config-interface.md → `role_policy`](harness-config-interface.md)),
+and any user instruction from a declined stop request.
 
 Template (sketch):
 

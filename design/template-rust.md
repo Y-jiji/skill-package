@@ -38,13 +38,31 @@ Applies when the project root contains a `Cargo.toml`, source lives under `src/`
         "rule": "no-deletion-of-attribute-item",
         "rule_params": { "attribute": "test" }
       }
-    ]
+    ],
+    "role_policy": {
+      "tester": [
+        "Rust Correct-vs-Profile mechanism: correctness tests live in `mod correct`; performance/profiling tests live in `mod perf` with `#[ignore]` on every test. Do NOT use `[[bin]]` profile binaries for tests; do NOT mix everything into a monolithic `mod tests`. (The harness already requires Correct-vs-Profile separation; this entry pins the Rust-specific names and gating.)",
+        "Tests live inline as `#[test]` functions in `.rs` files under the module being probed."
+      ],
+      "implementer": [
+        "Rust provenance comment syntax: `/// Human: ...` or `/// Agent: ...` for non-obvious design decisions. (Provenance discipline is universal — see your subagent definition; this entry pins the `///` Rust syntax.)",
+        "Rust Unique Path mechanism: `pub use` XOR `pub mod` for a given name in a module — never both. (Universal principle; this entry pins the Rust mechanism.)"
+      ]
+    }
   }
 }
 ```
 
 ## Notes
 
+- The universal TDD discipline (E2E Fuzz First, public-interface only,
+  Correct-vs-Profile separation as a principle, RAII probing, monotonic
+  test set on the tester; provenance, unique path, minimal-caller-
+  obligation, don't-write-past-the-test on the implementer) is baked
+  into the subagent definitions and applies to every project. The Rust
+  template's `role_policy` only pins the Rust-specific *mechanisms* —
+  `mod correct` / `mod perf` with `#[ignore]`, `///` comment syntax,
+  `pub use` XOR `pub mod`.
 - The tester writes tests inline as `#[test]` functions in `.rs` files. The implementer can add to a `#[test]` item (e.g. to expose an interface the test calls) but cannot reduce lines inside one and cannot delete one.
 - `implementer_bash_allowlist` is intentionally omitted — the implementer doesn't need `cargo` (that's the tester's job). If a project has an unusual reason for the implementer to run shell commands, opt in by adding the field.
 - The tester `tester_bash_allowlist` covers building, type-checking, and running tests. Common variants users may want to add:

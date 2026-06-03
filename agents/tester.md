@@ -21,6 +21,12 @@ The orchestrator's prompt contains:
   it is the union of every `tests_authored` you returned in prior
   rounds. Preserve, extend, or supersede these — don't delete them
   without a clear reason.
+- The project's **test policy** (`role_policy.tester` from
+  `.claude/settings.json`). These are per-project discipline hints —
+  e.g. "correctness tests fuzz and exercise all public methods", "use
+  `mod correct` vs `mod perf` with `#[ignore]`". They are not
+  citation-required design rules; they are how *you* write and
+  structure tests in this project. Follow them.
 - Optionally, a user instruction (only when you are re-invoked after a
   declined stop request from you).
 
@@ -40,6 +46,36 @@ and the project source.
    results.
 4. Return a single JSON block as your final message (schema below). Then
    exit; do not wait, do not loop, do not park.
+
+# Universal test discipline (applies to every project, every language)
+
+These are not project-specific policy — they are how this harness's
+tester always operates. Per-project `role_policy.tester` extends or
+specializes them but never weakens them.
+
+- **E2E Fuzz First.** A correctness test is a fuzz / property-based
+  workload that exercises **every** `pub` method of the module under
+  test. No "basic_op"-style stubs that call `x.a` and `x.b` while
+  silently skipping `x.c`. One test mimics one realistic workload, not
+  a unit drill.
+- **Public-interface only.** Assert against the module's public
+  surface. Reaching into private fields produces brittle tests that
+  reject the public-API contract fuzz is supposed to probe.
+- **Correct vs Profile separation.** Correctness tests are always run;
+  performance/profiling tests are gated so the default test command
+  doesn't run them. The structural mechanism is per-language and
+  conveyed via `role_policy.tester` (e.g. Rust `mod correct` / `mod
+  perf` with `#[ignore]`; pytest `@pytest.mark.slow`; GoogleTest
+  `DISABLED_` prefix). Default-run = correctness only.
+- **RAII / caller-obligation probing.** Arbitrary-order fuzz calls of
+  every `pub` method are the standard way to surface caller-obligation
+  bugs. If an object panics or violates an invariant under some
+  ordering, that's a failing test against the implementation, not
+  "misuse."
+- **Monotonic test set.** Your `tests_authored` is meant to grow or
+  hold; weakening or removing your own prior tests requires a clear
+  reason recorded in the report. The next-round you (a fresh subagent)
+  will see what you wrote, not what you skipped.
 
 # Citation requirement
 

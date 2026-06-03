@@ -36,7 +36,17 @@ There is no built-in per-language behavior in the hooks themselves — every pro
         "rule_params": { ... }
       },
       ...
-    ]
+    ],
+    "role_policy": {
+      "tester": [
+        "<one-line policy hint>",
+        ...
+      ],
+      "implementer": [
+        "<one-line policy hint>",
+        ...
+      ]
+    }
   }
 }
 ```
@@ -54,6 +64,28 @@ surface for that role.
 **Simple commands only.** Before the pattern match runs, every harness-role Bash call is parsed with `shlex` (posix mode, `punctuation_chars=True`); the call is denied if the tokenizer surfaces any standalone shell-operator token — `;`, `&&`, `||`, `|`, `&`, `<`, `>`, `>>`, `>&`, `(`, `)` — or if the raw command contains `$(...)` or backticks. Roles may therefore only run a single command with no compounding, pipes, redirection, backgrounding, subshells, or command substitution. Quoted argument content is preserved as a single token, so legitimate operator characters inside an argument (e.g. `grep '<T>' src/main.cpp`) are fine. Pattern matching is on the **first program token** after any leading `KEY=VALUE` env assignments — not by substring.
 
 The asymmetry between roles is deliberate. The tester needs to run tests (so its allowlist is typically rich); the implementer reads, writes, and edits code — it does not need general shell. Restricting implementer Bash narrows the attack surface and keeps the role focused.
+
+### `role_policy`
+
+Per-role instructional material that the prompt builder templates verbatim
+into every Task call for that role. Unlike `design/`, these are not
+probeable rules a tester must cite — they are style/discipline hints
+about *how* the role does its job in this project. Examples: "tests
+live in `mod correct` (correctness) and `mod perf` with `#[ignore]`
+(profiling), never a monolithic `mod tests`"; "API design prefers RAII
+guards over caller-managed invariants".
+
+The implementer's prose still cannot reach the tester (the
+implementer's `role_policy` is in the implementer's prompt only), and
+vice versa. The two lists are independent; the prompt builder reads
+each role's own list when constructing that role's prompt.
+
+If the field is missing or the list is empty, no policy hints are
+templated and the role operates per its subagent definition alone.
+This is a per-project escape hatch for things that aren't probeable
+design rules but still need to be conveyed to a fresh per-round
+subagent (which has no memory of prior rounds and no project context
+beyond what the prompt builder gives it).
 
 ### `write_constraints`
 
@@ -114,10 +146,11 @@ The script must be self-contained: it cannot rely on the dialog log or registry 
 
 ## How hooks consume the config
 
-| Hook | Field read | Effect |
+| Hook / consumer | Field read | Effect |
 |---|---|---|
-| `role_bash_allowlist.py` | `tester_bash_allowlist`, `implementer_bash_allowlist` | denies a role's Bash calls that are neither a harness script nor match a pattern in that role's allowlist. On pass for harness-role callers, additionally emits a PreToolUse `approve` decision so background subagents bypass Claude's permission gate — see [hooks.md → Pre-approving harness-role Edit/Write at the permission layer](hooks.md). |
-| `write_constraints.py` | `write_constraints` | for each applicable entry, parses pre/post with tree-sitter (or invokes a custom script) and applies the rule; denies on violation. On pass for harness-role callers, additionally emits a PreToolUse `approve` decision so background subagents bypass Claude's permission gate — see [hooks.md → Pre-approving harness-role Edit/Write at the permission layer](hooks.md). |
+| `role_bash_allowlist.py` | `tester_bash_allowlist`, `implementer_bash_allowlist` | denies a role's Bash calls that don't match a pattern in that role's allowlist. On pass, emits a PreToolUse `approve` decision. |
+| `write_constraints.py` | `write_constraints` | for each applicable entry, parses pre/post with tree-sitter (or invokes a custom script) and applies the rule; denies on violation. On pass for harness-role callers, emits a PreToolUse `approve` decision. |
+| `/game-start` prompt builder | `role_policy.tester`, `role_policy.implementer` | templated verbatim into the corresponding role's Task prompt every round. |
 
 ## Precondition for `/game-start`
 
