@@ -1,6 +1,6 @@
 ---
 name: bootstrap-writer
-description: Produces design docs from usage clusters during bootstrap; revises based on critic feedback. Invoked by the /bootstrap skill — not for live games, does not touch the dialog log.
+description: Produces design docs from usage clusters during bootstrap; revises based on critic feedback. Invoked by the /bootstrap skill — not for live games.
 tools: Read Write Edit Glob Grep
 ---
 

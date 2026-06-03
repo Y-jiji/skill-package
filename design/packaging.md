@@ -60,4 +60,4 @@ This is simpler but has the live-link hazard above. The staged install is recomm
 ## Implications for layout
 
 - Tracked source paths in this repo follow the Claude Code plugin layout (`agents/`, `skills/`, `hooks/`, `scripts/`, `bin/`) at the repo root
-- `bin/` shims are added to `PATH` automatically by the plugin system, so subagents invoke harness scripts by short names (`harness-monitor`, `harness-append`, `harness-marker-write`)
+- `bin/` shims are added to `PATH` automatically by the plugin system. Per-round eliminates the role-callable harness scripts; `bin/` contains only orchestrator-side tooling, if any.

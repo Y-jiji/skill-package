@@ -1,57 +1,105 @@
 ---
 depends:
   - design/solver-game.md
+  - design/prompt-builder.md
 implements: termination protocol
 ---
 
 # Termination protocol
 
-Handles stop requests from roles and drives the game to a terminal state. The sole actor with direct user interaction within a game.
+Drives the per-round game to a terminal state. All termination logic lives in
+the primary's round loop. There are no terminal markers, no SubagentStop
+hook, no parking primitive: a subagent that completes its move simply returns.
 
-## Mechanism
+## How a game ends
 
-Termination is split between two pieces:
-- The parent `/game-start` session's watch loop, which detects stop-request entries and handles user interaction.
-- A SubagentStop hook that enforces the termination precondition (below) by blocking a subagent's exit unless a terminal marker is in the log.
+There are three terminal triggers, all detected by the primary between rounds:
 
-`/game-start` launches both subagents via Task with `run_in_background: true` and enters its watch loop (via Claude Code's `Monitor` tool running `harness-monitor`, so each new entry becomes a notification). The parent ignores non-stop-request entries. When a stop-request appears, the parent — the sole actor with direct user interaction, since it runs in the user's slash-command session — surfaces it to the user and collects the response.
+1. **Role-issued stop request.** The subagent's return value carries a
+   non-null `stop_request` field (schema in [prompt-builder.md](prompt-builder.md)).
+2. **Fixed point.** A round produces an empty tester report (no
+   `failing_tests`, no `interface_requests`) AND, if the implementer was
+   invoked, empty `files_touched`. The system has converged: no failing test
+   can be produced and no code change is pending.
+3. **User-initiated abort.** The user interrupts at any inter-round
+   checkpoint and tells the primary to abort.
 
-### Flow
+## Flow
 
-1. The requesting subagent appends a stop-request entry via the custom append tool, then goes straight back to `harness-park`. SubagentStop blocks any exit attempt because no terminal marker exists yet.
-2. The peer's next `harness-park` return delivers the stop-request entry. The peer, like the requester, goes back to `harness-park` to wait — both roles are now parked.
-3. The parent's watch loop sees the stop-request and presents it to the user.
-4. **User-confirmed close/abort**: parent invokes the marker-write script to append the `play-close` / `play-abort` marker. Both subagents' next `harness-park` returns deliver the marker; their next exit attempt succeeds (SubagentStop sees the marker and permits exit); both backgrounded Tasks notify completion. After both have notified, the parent surfaces the final code state to the user and prompts about git operations (commit, revert, leave dirty, branch, etc.) — the parent does not commit or revert automatically. Because the game converges toward a fixed point, no hard enforcement is needed: subsequent `/game-start` runs can re-converge from whatever state the user chooses.
-5. **User-declined stop**: parent appends the user instruction via the custom append tool. Both subagents' next `harness-park` returns deliver the user instruction; they resume per their role specs. Neither needed to be re-launched.
+### Role-issued stop request
 
-## Marker write mechanism
+1. After the verifier accepts the return, the primary checks `stop_request`.
+2. If non-null, the primary surfaces the stop-request `summary` (and, for
+   tester stops, the `rules_checked` enumeration) to the user, with three
+   options: **close**, **abort**, or **decline** (with an instruction).
+3. **Close** → primary exits the round loop; proceed to the git prompt step.
+4. **Abort** → same, with `state = aborted` recorded in the registry.
+5. **Decline** → primary writes
+   `pending_user_instruction = {role: <requester>, text: <instruction>}`
+   to the registry, appends the instruction to the transcript, and
+   re-invokes **only the requester** in the next round with the
+   instruction templated in. The registry persistence ensures that a
+   session crash between decline and the next round doesn't lose the
+   instruction — §4 resume reads `pending_user_instruction` and threads
+   it back into that role's next prompt.
 
-Terminal markers (`play-close`, `play-abort`) cannot be written via Edit or Write because the marker fence hook denies any role edit that introduces a marker line not already present. The plugin ships a script (analogous to the custom append tool) that the parent session invokes to append the marker; the script bypasses the marker fence by using direct file append (not Edit/Write).
+### Fixed point
 
-The script is **parent-only**: it checks the `AGENT_TYPE` env var, which the agent_env_inject PreToolUse hook injects only for subagent-context Bash calls. The parent's Bash subprocesses have no `AGENT_TYPE`. Presence of `AGENT_TYPE` ≡ caller is a subagent → script refuses. The parent has no analogous identifier to spoof.
+A fixed point is detected in two cases:
 
-## Termination precondition for a role
+1. The tester returned empty `failing_tests` AND empty `interface_requests`,
+   and the implementer was therefore not invoked this round.
+2. (Reserved for future use; currently the case above is the only one
+   that fires. An implementer-empty + tester-non-empty round is NOT a
+   fixed point — the tester found work the implementer didn't address.)
 
-A role may exit its loop (terminate its Task) only if a terminal marker (`play-close` or `play-abort`) is present in the dialog log.
+On fixed point, the primary surfaces the convergence to the user with
+the same three options as a role-issued stop request (close, abort,
+decline). For decline routing, the tester is treated as the requester
+since its emptiness drove the decision.
 
-The rule is intentionally one-line: the only sanctioned ways a game ends are (a) the orchestrator writes `play-close` after a confirmed stop-request from either role, or (b) the orchestrator writes `play-abort` after a user-initiated abort. Either way the marker exists. Without it, the game is still in progress and the subagent must stay in its loop.
+### User abort
 
-Note this rule **does not** check peer state. A role cannot exit just because it has nothing more to do at the moment, and it cannot exit just because the peer has already left — both of those used to be allowed in an earlier formulation of the hook and produced an observed failure where the implementer walked off mid-game during a quiet stretch and the tester was left in a one-sided conversation. The marker-only rule closes that hole; the peer leaving early triggers an orchestrator-side response (write `play-abort` or restart the peer), not the partner's exit.
+1. At any inter-round checkpoint, primary checks if the user has requested
+   abort (e.g. via Ctrl-C handling in the slash command, or explicit
+   instruction).
+2. If yes, primary records `state = aborted` and exits to the git prompt.
 
-### Enforcement
+## Stop-request verification
 
-A SubagentStop hook enforces the precondition. When the subagent's session is about to end, the hook reads the dialog log:
+The primary applies the prompt-builder verifier to a stop request before
+surfacing it. A tester stop request without a verifiable `rules_checked`
+citation list is rejected as a malformed report; the primary re-prompts the
+tester to re-emit per schema. This is what prevents a tester from issuing
+"nothing more to test" without saying which rules it actually checked.
 
-- Terminal marker present → exit permitted.
-- Otherwise → return `{"decision": "block", "reason": "..."}`. The block message tells the subagent to call `harness-park` (the single-shot blocking wait, see [monitor.md](monitor.md)) to idle until the next dialog-log entry; one `harness-park` invocation costs one tool-call turn step regardless of how long the wait actually takes, so this "rest" is cheap in tokens. The subagent loops on `harness-park`; eventually the marker arrives, the next exit attempt sees it, and the hook permits exit.
+An implementer stop request only needs `summary` prose (no citation requirement
+— the implementer's blockers may be tooling or constraint problems that don't
+map cleanly to a single design line). The user is the one who decides whether
+the implementer's stop is justified.
 
-### Fail-open on abnormality
+## Why no markers
 
-The hook is **fail-open**: any abnormality during the precondition check — missing registry, missing or unreadable dialog log, missing `dialog_log_path` field, malformed stdin event, unhandled exception — allows the stop. Block is reserved for the case where every read succeeds AND no terminal marker is present. Rationale: a broken game should not trap a subagent in an unrecoverable retry loop. If state is inconsistent enough that the precondition check can't run cleanly, let the subagent exit; the parent can recover or restart from cleaner state.
+In the previous design, terminal markers (`play-close` / `play-abort`) in a
+shared log served two purposes:
+
+1. Tell concurrent subagents "you can exit now" — gated by SubagentStop.
+2. Serve as the persistent source-of-truth for game state across restarts.
+
+Per-round eliminates (1) entirely: subagents already exited at the end of
+their move. (2) is replaced by the `state` field in the registry, written by
+the primary. No marker mechanism, no marker fence, no marker-write script.
 
 ## Contracts
 
-- Terminal markers are written only after explicit user confirmation, by the parent session via the marker-write mechanism
-- The marker's presence in the dialog log is what makes the game "closed" or "aborted" for any subsequent `/game-start` invocation
-- Git operations (commit, revert, leave dirty) on close or abort are decided by the user when the parent prompts; the harness does not enforce them
-- After both terminal-marker handling and the subagents' completion notifications, the parent removes the registry file and the dialog log from `/tmp` before returning; nothing is kept for inspection
+- Termination decisions are made by the primary after explicit user
+  confirmation (close / abort) or by detecting a fixed point (presented to
+  the user before exiting). Roles cannot terminate the game; they can only
+  request termination.
+- After the loop exits (close, abort, or fixed point), the primary prompts
+  the user about git operations (commit, revert, leave dirty, branch).
+  Operations are user-decided; the harness does not auto-commit or
+  auto-revert.
+- After the user is done with git, the primary removes the registry directory
+  and the round transcript from `/tmp`. Nothing is kept for inspection beyond
+  what the user chose to commit.

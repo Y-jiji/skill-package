@@ -24,7 +24,7 @@ Bootstrap is exposed as a standalone skill (`/bootstrap`), invoked by the user w
 
 ## Mechanism
 
-Bootstrap runs in-skill: the bootstrap skill orchestrates the writer and critic itself by calling them as subagents sequentially via the Task tool, capturing each output, and feeding it into the next call. Bootstrap does not use the dialog log, monitor, custom append tool, registry, or any other game-time communication infrastructure — those exist only for the implementer/tester game, which has true concurrent activity. Writer and critic are inherently sequential, so direct in-skill orchestration is sufficient.
+Bootstrap runs in-skill: the bootstrap skill orchestrates the writer and critic itself by calling them as subagents sequentially via the Task tool, capturing each output, and feeding it into the next call. Bootstrap does not use the registry or any other game-time infrastructure — those exist only for the implementer/tester game.
 
 ## Sub-components
 

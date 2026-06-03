@@ -1,16 +1,46 @@
 ---
 depends:
   - design/solver-game.md
+  - design/prompt-builder.md
 implements: communication protocol
 ---
 
 # Communication protocol
 
-The shared channel through which implementer and tester exchange findings and requests within a game.
+How information flows in a per-round game. There is no shared dialog log
+between roles. The primary (orchestrator) is the sole hub; the prompt builder
+is the sole channel that touches a subagent's prompt.
 
-## Dialog log
+## Channels
 
-One shared append-only file per game, stored at a randomly chosen path under `/tmp`. The path is not exposed to roles. Roles cannot touch the dialog log by any means — Read, Write, Edit, Bash, invoking the monitor binary, or any other tool path — except via the custom append tool (write) and via being awoken by the monitor (read). Access is enforced via hooks.
+| From | To | Channel |
+|------|----|---------|
+| user | primary | the interactive slash-command session |
+| primary | subagent | the Task tool prompt, constructed by the prompt builder ([prompt-builder.md](prompt-builder.md)) |
+| subagent | primary | the subagent's final message — a single JSON block matching the role's return schema |
+| role A | role B | **none directly.** Routed via primary, but only structured + citation-checked fields cross the boundary |
+
+The implementer's prose never reaches the tester. The tester's prose only
+reaches the implementer through fields the primary's verifier has
+citation-checked. Both guarantees are enforced by the prompt builder's
+templates having no slot for the prohibited content; the primary itself does
+not decide what to forward.
+
+## Round transcript (primary-only)
+
+The primary keeps a per-game round transcript on disk for two reasons:
+
+1. **Resume**: if `/game-start` is re-entered while a game is in flight (e.g.
+   the user closed the session before confirming a stop), the next primary
+   reads the transcript to recover round count, the last verified tester
+   report, and the last verified implementer move.
+2. **User inspection**: after a close or abort, the user can read what
+   happened.
+
+The transcript is **append-only** and **primary-only** — no subagent reads or
+writes it. It is not a communication channel; it is a journal. Each entry is
+one JSON object recording round number, role, the verified return value, and
+timestamp.
 
 ## Registry
 
@@ -18,44 +48,61 @@ A per-project registry file at the deterministic path
 
     /tmp/functional-harness/PROJECT-PATH-<encoded-project-root>/game.json
 
-records the current game's runtime state. `<encoded-project-root>` is the absolute project root with `/` replaced by `-` (so `/home/foo/proj` becomes `-home-foo-proj`).
-
-The registry exists so the harness scripts (`harness-append`, `harness-park`, `harness-monitor`, `harness-marker-write`) can resolve the dialog log path and the per-game-mangled role env var name without the role having to supply them. The registry itself is unreachable from a harness role: the role's tool list doesn't include any tool that can usefully read it, and `role_bash_allowlist` denies any Bash command the role would use to `cat` / `find` / `grep` it. See [hooks.md → Dialog log access control](hooks.md) for the full layered argument. Only the harness scripts and `/game-start` read or write it.
+records the current game's runtime state. `<encoded-project-root>` is the
+absolute project root with `/` replaced by `-` (so `/home/foo/proj` becomes
+`-home-foo-proj`).
 
 ### Schema
 
-- `dialog_log_path` — absolute path to the dialog log (the random `/tmp` location). Written once at game creation.
-- `project_root` — absolute project root path. Written once at game creation. Used by readers to sanity-check the registry matches the project they are running in.
-- `cursors` — map from cursor key to the index of the next dialog-log entry that key should be delivered. Updated by the monitor on each call so the next invocation (a fresh process) knows where to resume. Keys are role names (`"implementer"`, `"tester"`) plus `"orchestrator"` for the parent `/game-start` watch loop.
-- `terminated` — optional map from role name to bool, set by SubagentStop when a role's exit is permitted; consulted by SubagentStop on the peer to decide whether to block.
+- `project_root` — absolute project root. Written once at game creation.
+  Used by readers to sanity-check the registry matches the project.
+- `transcript_path` — absolute path to the round transcript (random `/tmp`
+  location). Written once at game creation.
+- `round` — integer, incremented after each completed round.
+- `state` — `"in-flight"`, `"closed"`, or `"aborted"`. The primary sets this;
+  it is the sole source of truth for game state since markers are gone.
+- `owner_session_id` — the `CLAUDE_SESSION_ID` of the orchestrator that
+  currently owns this in-flight game. Set on game creation or ownership
+  takeover (after a stale prior owner).
+- `last_heartbeat` — unix epoch seconds, refreshed by the orchestrator at
+  the top of each round. The mutex for "exactly one game per project at
+  a time": a new `/game-start` invocation refuses if `state == in-flight`
+  and `now - last_heartbeat < 300s`. After 5 minutes of silence, the new
+  invocation takes ownership.
+- `pending_user_instruction` — `null` or `{role: "tester"|"implementer",
+  text: "..."}`. Set when the user declines a stop request and provides
+  an instruction; consumed by the next prompt for that role; persisted
+  so a session crash between decline and the next round doesn't lose it.
+- `tests_authored` — list of test file paths the tester currently owns,
+  accumulated across rounds. Threaded into each tester prompt so the
+  fresh per-round subagent has continuity with its own prior work.
+- `last_files_touched` — list of paths the previous round's implementer
+  wrote. Threaded into the next tester prompt as the diff signal.
 
-Game-in-flight vs closed vs aborted is not in the registry — terminal markers in the log are the sole source of game state per `solver-game.md`.
-
-Role identity is not in the registry either — it comes from the `agent_type` field of each hook event (Claude Code populates this for subagent contexts) and is propagated to Bash subprocesses via the agent-env-inject hook described in [hooks.md](hooks.md). The orchestrator is identified by the *absence* of `agent_type`.
+The registry has no `cursors` map (no shared log to read), no
+`dialog_log_path` (no shared log), no `terminated` map (no SubagentStop
+coordination), and no `role_env_var_name` mangling for log access (no log
+access to gate). Role identity is still propagated to harness-role Bash via
+`agent_env_inject` because the per-role Bash allowlist and write_constraints
+still depend on knowing which role is calling — see [hooks.md](hooks.md).
 
 ## Sub-components
 
-### Custom append tool
+### Prompt builder
 
-The sole write interface to the dialog log.
+See [prompt-builder.md](prompt-builder.md). The sole construction path for a
+subagent prompt; the sole verification path for a subagent return.
 
-- **Input**: message content from a role
-- **Output**: appended entry to the dialog log, with role, session id, timestamp, and content
-- **Contract**: the tool owns the entry format; no role may write to the dialog log by any other means
+### Round transcript writer
 
-### Monitor
+A simple primary-side helper that appends one JSON line per role return to
+the transcript file. Not exposed as a tool to subagents. Implementation may
+be inline in the `/game-start` skill body — there is no contract surface
+beyond "append-only JSON lines."
 
-The sole read interface to the dialog log.
+### Registry I/O
 
-- **Invocation form**: a Python script the subagent invokes via Bash; the call blocks until a new dialog-log entry the caller is allowed to see is available
-- **Input**: none from the role — path, cursor key, and visibility filter are all derived from the caller's `CLAUDE_SESSION_ID` looked up in the registry; the caller cannot pass the cursor key as an argument
-- **Output**: the next dialog-log entry visible to the caller, returned as the command's stdout
-- **Per-role filter**: implementer entries are delivered to the tester with `content` redacted (tester learns *that* the implementer acted but not *what* was said); no role sees its own appends; the orchestrator sees both roles' entries unredacted. Full table in [monitor.md](monitor.md).
-- **Contract**: roles receive dialog log entries only via the return value of this blocking call; direct reads are forbidden
-
-### Start hook
-
-Fires when a subagent session starts.
-
-- **Action**: registers the session id and role to the dialog log
-- **Contract**: every role's participation in a game is recorded before any iteration begins
+Read and written only by the primary. The primary is the orchestrator; it has
+the full Bash and file tool surface and does not need a hardened script
+layer. There are no harness-script entry points for subagents to call here,
+because subagents do not interact with the registry at all.

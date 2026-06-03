@@ -1,38 +1,67 @@
 ---
 depends:
   - design/solver-game.md
+  - design/prompt-builder.md
 implements: tester
 ---
 
 # Tester
 
-Writes adversarial tests against the implementation and runs the satisfaction check.
+Writes adversarial tests against the implementation and runs the satisfaction
+check.
+
+## Invocation contract
+
+The tester is invoked **once per round** as a foreground Task call by the
+primary. Each invocation produces at most one structured report and exits.
+There is no internal loop, no waiting on any channel, no peer messaging.
 
 ## Inputs
 
-- `design_docs_v2` (by path)
-- `code_current` (implementation read-only; tester may write where the per-project `write_constraints` permit and run Bash matching `tester_bash_allowlist`, per [harness-config-interface.md](harness-config-interface.md))
-- Shared log (entries received via the monitor command, which blocks until a new entry from the implementer arrives)
-- User instruction (when resumed after a declined stop request)
+Delivered by the prompt builder ([prompt-builder.md](prompt-builder.md)):
 
-## Isolation
+- `design_docs_v2` (paths to all design files, with line counts).
+- The previous round's `files_touched` from the implementer (round 1: "full
+  code state").
+- Optional user instruction (when this round is a re-invocation after a
+  declined stop request from the tester).
 
-- Implementer message **content** is not visible to the tester. The tester reasons only from code and design docs.
-- This isolation is **hard-enforced** in the monitor: when the tester's monitor returns an implementer entry, the `content` field is replaced by the sentinel `"<redacted>"`. The other fields (`role`, `session_id`, `timestamp`) are preserved so the tester learns *that* the implementer acted — a wake signal to re-read the code — without learning *what* was said. See [monitor.md](monitor.md).
-- The tester reads and executes implementation code but does not modify it. Enforcement is per-project, defined via the harness config — see [harness-config-interface.md](harness-config-interface.md).
+The tester **does not receive** any prose from the implementer — neither
+`report_to_user` nor prior tester prose. The tester reasons from `design/`
+and the project source. This isolation is enforced by the prompt-builder
+template (it has no slot for implementer prose). See
+[prompt-builder.md → Contracts](prompt-builder.md).
 
 ## Behavior
 
-The tester deploys adversarial tests at its own discretion — strategy, ordering, and scope are the tester's concern. Each test targets a potential gap between the implementation and `design_docs_v2`.
+The tester selects an angle from `design_docs_v2`, writes (or runs) a test
+designed to fail iff the implementation does not satisfy the cited rule, and
+reports the result. The tester may write test files where the per-project
+`write_constraints` permit it.
+
+Every `failing_tests` and `interface_requests` entry must carry a
+`design_citation` (file, line range, exact quoted rule). The primary's
+verifier rejects entries with citations that don't appear at the cited
+location, so fabrications fail loudly rather than reaching the implementer.
 
 ## Output
 
-- Failing tests and violation reports, made available to the implementer via the shared channel
-- Interface exposure requests, written to the shared log when the implementation lacks sufficient testable surface — the implementer monitors the log and responds by exposing the requested interfaces in code
-- A compact summary of what was verified when issuing a stop request
+A single JSON block matching the tester-report schema in
+[prompt-builder.md](prompt-builder.md):
+
+- `failing_tests`: each with `test_id`, `design_citation`, `violation_summary`.
+- `interface_requests`: each with `needed`, `module`, `design_citation`.
+- `tests_authored`: full list of test files the tester owns at end of
+  round (cumulative).
+- `stop_request`: null, or
+  `{ "summary": "...", "rules_checked": [<citations>] }`.
 
 ## Stop request
 
-Issued when the tester cannot produce any failing test against `code_current`. The stop request includes a summary of what was verified and what angles were attempted.
+Issued when the tester cannot produce a new failing test. The `rules_checked`
+enumeration must list (with citations) the design rules the tester
+exhaustively probed. The primary spot-checks the citations and surfaces the
+stop to the user.
 
-When the user declines the stop request and provides instruction, the tester resumes with that instruction as additional input.
+If the user declines and provides an instruction, the next round re-invokes
+the tester with that instruction templated into the prompt.

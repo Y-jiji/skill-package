@@ -1,10 +1,23 @@
 ---
 name: game-start
-description: Drives one iteration of the functional-harness game toward a fixed point. Launches the implementer and tester subagents in parallel, watches the shared dialog log via Monitor, surfaces stop-requests to the user for confirmation, writes the terminal marker, then prompts about git. Run from the project root.
-allowed-tools: Bash Read Task Monitor TaskStop
+description: Drives one game of the functional-harness toward a fixed point. Per-round model — primary launches a fresh tester and implementer Task call each round, runs the deterministic verifier between rounds, surfaces stop requests and fixed-point detection to the user, then prompts about git. Run from the project root.
+allowed-tools: Bash Read Write Edit Task
 ---
 
-You are the parent **orchestrator** running the `/game-start` skill. Drive one game iteration end-to-end. Follow these steps in order.
+You are the parent **orchestrator** running the `/game-start` skill. The
+game is per-round: each round you call the tester once, verify its
+return, optionally call the implementer once, verify its return, then
+check terminal conditions and loop. Each subagent invocation is a single
+foreground Task call that performs one move and exits. There are no
+background tasks, no Monitor watches, no shared dialog log.
+
+The prompt-builder and verifier contracts are in
+[design/prompt-builder.md](../../design/prompt-builder.md). The full
+process is in [design/game-start.md](../../design/game-start.md).
+
+Throughout this skill, replace `<encoded>` with `$CLAUDE_PROJECT_DIR`
+with `/` substituted by `-`, and use `$REG` for
+`/tmp/functional-harness/PROJECT-PATH-<encoded>` (the registry dir).
 
 # 1 — Bootstrap check
 
@@ -12,131 +25,282 @@ You are the parent **orchestrator** running the `/game-start` skill. Drive one g
 ls design/ 2>/dev/null | head -n 1
 ```
 
-If empty or `design/` is missing, tell the user:
+If empty or missing:
 
-> The `design/` directory is empty. Run `/bootstrap` first to infer initial design docs from the existing code, then run `/game-start` again.
+> The `design/` directory is empty. Run `/bootstrap` first to infer
+> initial design docs, then run `/game-start` again.
 
-Then exit. Do not proceed.
+Exit.
 
 # 2 — Configuration check
 
-Read `.claude/settings.json` and verify a `functional-harness` namespace is present (per [harness-config-interface.md](harness-config-interface.md)). The harness has no built-in per-language behavior at runtime — the per-project config is the sole source of truth for the tester's Bash allowlist, the implementer's Bash allowlist, and any structural write constraints.
+Read `.claude/settings.json`. Verify the `functional-harness` namespace
+exists. If missing:
 
-If the namespace is missing, tell the user:
+> This project hasn't been configured. Run `/configure` first.
 
-> This project hasn't been configured for the harness. Run `/configure` to set up the tester Bash allowlist and write constraints (the configure skill offers Rust and C/C++/CUDA templates as starting points, or a custom path). Then run `/game-start` again.
+Exit.
 
-Then exit. Do not proceed.
+# 3 — Registry and ownership check
 
-# 3 — Resolve registry and check for an in-flight game
+Try to `cat $REG/game.json`.
 
-The registry path is:
+- **File doesn't exist** → new game (go to §4).
+- **File exists, `state == "closed"` or `"aborted"`** → previous game
+  finished; `rm -rf $REG` and the recorded `transcript_path`; treat as
+  new game.
+- **File exists, `state == "in-flight"`** → check ownership:
+  - Read `last_heartbeat` (unix epoch seconds). If now − last_heartbeat
+    < 300 (5 minutes), some other live session owns this game:
+    > A `/game-start` session for this project appears to be active
+    > (last heartbeat <N>s ago). If that's wrong (the prior session
+    > crashed), delete `$REG/game.json` and re-run.
 
-```
-/tmp/functional-harness/PROJECT-PATH-<encoded>/game.json
-```
+    Then exit.
+  - Otherwise the prior owner is stale → take ownership: update
+    `owner_session_id` to your `$CLAUDE_SESSION_ID` and refresh
+    `last_heartbeat`. Proceed to resume (§4 resume branch).
 
-where `<encoded>` is `$CLAUDE_PROJECT_DIR` with `/` replaced by `-`. Compute this path and `cat` it.
-
-- If it exists, `cat` its `dialog_log_path` content and check for a terminal marker (`"content": "play-close"` or `"content": "play-abort"` entry). If a marker is present, the previous game was already closed — delete `/tmp/functional-harness/PROJECT-PATH-<encoded>/` and the dialog log, then treat this run as a new game.
-- If it exists and no terminal marker is present → **resume** an in-flight game.
-- If it doesn't exist → **new game**.
-
-# 4 — Create (or update) the registry
+# 4 — Create or load the registry
 
 For a **new game**:
 
-1. `mkdir -p /tmp/functional-harness/PROJECT-PATH-<encoded>`.
-2. Generate a random dialog log path AND a pair of per-game-mangled role/id env-var names in one shot:
+1. `mkdir -p $REG`.
+2. Generate a transcript path:
    ```bash
-   python3 -c "
-   import tempfile, os, secrets, json
-   fd, log = tempfile.mkstemp(suffix='.log', prefix='dialog-', dir='/tmp'); os.close(fd)
-   suffix = secrets.token_hex(8)
-   print(json.dumps({
-       'dialog_log_path': log,
-       'role_env_var_name': f'_FH_ROLE_{suffix}',
-       'role_env_id_name': f'_FH_ID_{suffix}',
-   }))"
+   python3 -c "import tempfile, os; fd, p = tempfile.mkstemp(suffix='.jsonl', prefix='transcript-', dir='/tmp'); os.close(fd); print(p)"
    ```
-   Capture all three values. The mangled var names are how the `agent_env_inject` hook smuggles role identity past the agent: the hook reads them from the registry and prepends `<role_var>=<role> <id_var>=<id> <cmd>` to every subagent Bash call; the harness scripts read those same names back out of `os.environ`. Because the names are random per game and live only in the (access-control-fenced) registry, the agent never learns them and cannot spoof, unset, or override the role identity from inside its own command.
-3. Write the registry. Initial content (substitute the three captured values):
+3. Write `$REG/game.json` with the full schema:
    ```json
    {
-     "dialog_log_path": "<random path>",
      "project_root": "<$CLAUDE_PROJECT_DIR>",
-     "role_env_var_name": "<mangled role var>",
-     "role_env_id_name": "<mangled id var>",
-     "cursors": {}
+     "transcript_path": "<random path>",
+     "round": 0,
+     "state": "in-flight",
+     "owner_session_id": "<$CLAUDE_SESSION_ID>",
+     "last_heartbeat": <unix seconds>,
+     "pending_user_instruction": null,
+     "tests_authored": [],
+     "last_files_touched": []
    }
    ```
-4. Append the kickoff via `harness-append`:
-   ```bash
-   harness-append "Game start. design_docs_v2 lives at design/. Tester: begin probing for gaps. Implementer: stand by for tester findings; if a gap is obvious from design/ alone, start closing it."
-   ```
 
-For a **resume**: update `parent_session_id` to your current `$CLAUDE_SESSION_ID`, then append:
+For a **resume**: registry already exists. Read `round`,
+`transcript_path`, `tests_authored`, `last_files_touched`,
+`pending_user_instruction`. The transcript tail recovers the last
+verified returns if you need detail beyond the registry summary.
+
+# 5 — Round loop
+
+Repeat 5a–5e until you exit via a terminal condition. At the top of
+each round, refresh the heartbeat:
 
 ```bash
-harness-append "Game resume. Catch up via harness-monitor (your cursor is preserved), then continue."
+python3 -c "import json, time, pathlib; p=pathlib.Path('$REG/game.json'); r=json.loads(p.read_text()); r['last_heartbeat']=int(time.time()); p.write_text(json.dumps(r, indent=2))"
 ```
 
-# 5 — Launch implementer and tester in parallel
+## 5a — Tester round
 
-In a single assistant message, issue two Task calls with `run_in_background: true`:
+Build the tester prompt deterministically. Inputs (read from the
+registry plus disk):
 
-- `subagent_type: implementer`, prompt: `"Begin the implementer loop now per your subagent definition."`
-- `subagent_type: tester`, prompt: `"Begin the tester loop now per your subagent definition."`
+- `wc -l design/*.md` for the file list with line counts.
+- `last_files_touched` from registry (or "round 1: full code state" if
+  round is 0).
+- `tests_authored` from registry (paths of test files the tester has
+  previously authored — pass this in so the fresh subagent doesn't
+  re-author or delete its own prior tests).
+- The `tester_bash_allowlist` patterns.
+- `pending_user_instruction` if its `role == "tester"` (otherwise null).
 
-You will resume immediately (background tasks notify on completion).
-
-# 6 — Watch via Monitor
-
-Start a persistent watch via the Monitor tool:
+Template:
 
 ```
-Monitor(
-  description="orchestrator dialog-log watch",
-  command="harness-monitor",
-  persistent=true,
-  timeout_ms=3600000
-)
+You are the tester. Round <N> of game <project>.
+
+Design docs (read what's relevant):
+  design/a.md (84 lines)
+  design/b.md (210 lines)
+  ...
+
+Implementation changes since your last round:
+  src/foo.rs
+  src/bar.rs
+[OR: Round 1 — full code state. Read the implementation.]
+
+Test files you have previously authored (preserve, extend, or
+supersede; do not delete without good reason):
+  tests/x.rs
+  tests/y.rs
+[OR: (none yet — round 1)]
+
+[If pending user instruction for tester:]
+User instruction (after declined stop request):
+  <instruction>
+
+Bash allowlist (your patterns):
+  <pattern 1>
+  <pattern 2>
+
+Your task: per your subagent definition, produce one tester-report JSON
+block. Cite design rules verbatim for every failing test and every
+interface request. Set `tests_authored` to the full list of test files
+you own as of end-of-round.
 ```
 
-Each new orchestrator-visible dialog-log entry arrives as a notification (one JSON object per line). Act on each notification's `content`:
+Issue `Task(subagent_type: tester, prompt: ...)`. Wait for return.
 
-- **`content` starts with `stop-request:`** — surface the entry's `role` and full `content` to the user:
-  > The {role} issued a stop request:
-  >
-  > {content}
-  >
-  > Confirm (close → commit/leave), abort (discard), or decline (continue — provide an instruction)?
+## 5b — Verify tester return
 
-  - **Confirm/close** → `Bash("harness-marker-write play-close")`. The Monitor watch will end on its own when the marker streams through.
-  - **Abort** → `Bash("harness-marker-write play-abort")`. Same.
-  - **Decline** → `Bash("harness-append '<user instruction>'")` then re-launch ONLY the requester via Task (backgrounded). The peer's Monitor watch returns the user instruction as a notification.
-- **`content` is `play-close` or `play-abort`** — your own marker write streamed back. The Monitor task will exit; nothing to do here.
-- **Anything else** — ignore. Your cursor has advanced; the content was a role-to-role message, not for you.
-
-Whenever you've issued the close/abort marker and are done waiting, call TaskStop on the Monitor task to clean up.
-
-# 7 — Wait for both subagents to finish
-
-After the terminal marker, both backgrounded subagents will see it via their next `harness-monitor` return, SubagentStop will permit their exit, and you'll be notified of each Task's completion. Wait for both notifications before continuing.
-
-# 8 — Post-game cleanup and git prompt
-
-1. Show the user a concise summary of what changed in the working tree (`git status --short` and `git diff --stat`).
-2. Prompt the user about git: commit (and if so, what to include / what message), revert, leave as-is, branch off, etc. The harness does NOT auto-commit or auto-revert — the user decides.
-3. After the user is done with git, remove the registry and dialog log:
+1. Write the subagent's final-message text verbatim to
+   `$REG/last_tester.txt` (use the Write tool with that absolute path).
+2. Run the verifier:
    ```bash
-   rm -rf /tmp/functional-harness/PROJECT-PATH-<encoded>
-   rm -f <dialog_log_path>
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/verify_return.py tester $REG/last_tester.txt design
+   ```
+   - Exit 0 → stdout is the verified JSON object. Parse it.
+   - Exit 2 → stderr contains the rejection reasons.
+3. On rejection: re-prompt the tester with a fresh `Task` call whose
+   prompt is the original tester prompt + a footer:
+   ```
+   Your previous return was rejected:
+     <rejection reasons from stderr>
+   Re-emit a single tester-report JSON block per the schema, fixing the
+   above.
+   ```
+   Retry budget: 2 per round. If exhausted, surface to user and ask
+   whether to abort.
+4. On success, append the verified report (as one JSON line) to the
+   transcript file via Bash append.
+
+## 5c — Post-tester checks
+
+Three signals from the verified report drive what happens next:
+
+- **stop_request non-null** → handle per §6 (terminal).
+- **failing_tests empty AND interface_requests empty** → set
+  `tester_empty = true`. Skip 5d. Go to §5e step 4 to evaluate the
+  fixed point.
+- **otherwise** → `tester_empty = false`. Proceed to 5d.
+
+Also: regardless of branch, update the registry's `tests_authored`
+field to the union of the existing list and the report's
+`tests_authored`.
+
+## 5d — Implementer round (only when `tester_empty == false`)
+
+Build the implementer prompt:
+
+- Design files list.
+- The tester's verified `failing_tests` and `interface_requests` (just
+  the structured fields and citations).
+- `pending_user_instruction` if its `role == "implementer"`.
+
+Template:
+
+```
+You are the implementer. Round <N> of game <project>.
+
+Design docs:
+  design/a.md
+  ...
+
+Tester findings this round:
+  Failing test "<test_id>" — violates design/<file>:<start>-<end>
+    "<quoted_rule>"
+    (<violation_summary>)
+  Interface request — <needed> in <module>, required to probe
+    design/<file>:<start>-<end>
+    "<quoted_rule>"
+  ...
+
+[If pending user instruction for implementer:]
+User instruction (after declined stop request):
+  <instruction>
+
+Your task: per your subagent definition, produce one implementer-move
+JSON block. Make the failing tests pass; expose requested interfaces;
+do not modify design/ (the hook will deny it anyway).
+```
+
+Capture a `git status --porcelain` snapshot before the call. Issue
+`Task(subagent_type: implementer, prompt: ...)`. Wait for return.
+
+## 5e — Verify implementer return and check terminal conditions
+
+1. Write the return text to `$REG/last_implementer.txt`.
+2. Run:
+   ```bash
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/verify_return.py implementer $REG/last_implementer.txt design
+   ```
+   Exit 0 / Exit 2 as above. Same retry budget.
+3. On success, parse the JSON. Additionally verify that every path in
+   `files_touched` either appears in the post-call `git status
+   --porcelain` diff vs the pre-call snapshot, or exists on disk and
+   was modified. On failure here, re-prompt with "paths X, Y not
+   reflected in git diff" within the same retry budget.
+4. Append the verified move to the transcript.
+5. If `stop_request` is non-null → handle per §6.
+6. **Fixed-point check.**
+   - If `tester_empty == true` and 5d was skipped → fixed point.
+   - If `tester_empty == false` and `files_touched` is empty → not a
+     fixed point (tester found work but implementer made no change);
+     keep going.
+   - Otherwise → not a fixed point.
+   On fixed point, surface to user per §6 (treating the requester as
+   `"tester"` for any decline-instruction routing).
+7. If not terminal, update the registry: increment `round`, set
+   `last_files_touched = files_touched`, clear
+   `pending_user_instruction`. Loop to 5a.
+
+# 6 — Terminal handling (stop request or fixed point)
+
+Surface the trigger to the user. For a stop request, include `summary`
+and (for tester) the `rules_checked` list. For a fixed point:
+
+> Round <N> converged: no failing tests can be produced and no code
+> change was made.
+
+Options:
+
+- **Close** → set `state = "closed"` in registry. Break out. Go to §7.
+- **Abort** → set `state = "aborted"`. Break out. Go to §7.
+- **Decline (with instruction)** → write to registry:
+  ```json
+  "pending_user_instruction": {"role": "<requester>", "text": "<instruction>"}
+  ```
+  Append the instruction to the transcript with a `pending-instruction`
+  marker line. Do NOT increment `round`. Loop back to 5a (tester
+  requester) or 5d (implementer requester).
+
+The persistence step matters for resume: if the user's session dies
+between the decline and the next round, §4 resume reads
+`pending_user_instruction` from the registry and threads it back into
+the appropriate role's next prompt.
+
+# 7 — Post-loop: git prompt and cleanup
+
+1. Show `git status --short` and `git diff --stat`.
+2. Prompt the user about git operations (commit, revert, leave as-is,
+   branch). The harness does NOT auto-commit or auto-revert.
+3. After the user resolves git:
+   ```bash
+   rm -rf $REG
+   rm -f <transcript_path>
    ```
 4. Tell the user the game is closed; exit.
 
 # Notes
 
-- You are the **orchestrator**, not a role. Always use `harness-monitor`, `harness-append`, `harness-marker-write`. Never Read/Write/Edit the dialog log or registry directly — the access-control hook fences those paths for you too.
-- The skill body is the orchestrator's script. Follow it. Don't free-style.
-- If something fails before subagent launch (registry can't be created, log path can't be generated), clean up partial state and tell the user.
+- You are the orchestrator. You read and write the registry and
+  transcript directly. Subagents touch neither.
+- The verifier (`scripts/verify_return.py`) is the deterministic
+  extraction + schema-check + citation-check path. You decide what to
+  do with its result; you do not extract or check by hand.
+- The prompt builder lives in this skill body. Keep templates
+  deterministic: same inputs → same prompt. Never paraphrase implementer
+  prose into anything the tester sees — the tester's prompt template
+  has no slot for it, and that absence is the isolation guarantee.
+- The heartbeat is your only mutex. Refresh it at the top of every
+  round; that bounds how long a crashed session blocks a new
+  `/game-start` to ~5 minutes.

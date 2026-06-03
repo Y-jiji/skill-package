@@ -43,12 +43,15 @@ There is no built-in per-language behavior in the hooks themselves — every pro
 
 ### Bash allowlists
 
-The harness scripts (`harness-monitor`, `harness-append`) are **always allowed** for both roles, hardcoded in the hook. They never need to appear in either allowlist.
+Per-round eliminates the harness-script primitives roles used to invoke
+(`harness-park`, `harness-monitor`, `harness-append`, `harness-marker-write`).
+There are no always-allowed shims; the per-role allowlist is the entire Bash
+surface for that role.
 
-- `tester_bash_allowlist` — list of regex patterns. A tester Bash call is allowed iff its command is a harness script or matches at least one pattern. Missing or empty → tester has no Bash beyond the harness scripts.
-- `implementer_bash_allowlist` — same shape, applied to the implementer. The implementer is restricted to "write code + harness scripts" by default; this field is the opt-in escape hatch for projects that genuinely need the implementer to run something else (rare — building and testing are the tester's job). Missing or empty → implementer has no Bash beyond the harness scripts.
+- `tester_bash_allowlist` — list of regex patterns. A tester Bash call is allowed iff it matches at least one pattern. Missing or empty → tester has no Bash at all.
+- `implementer_bash_allowlist` — same shape, applied to the implementer. The implementer is restricted to "write code" by default; this field is the opt-in escape hatch for projects that genuinely need the implementer to run something else (rare — building and testing are the tester's job). Missing or empty → implementer has no Bash.
 
-**Simple commands only.** Before the pattern match runs, every harness-role Bash call is parsed with `shlex` (posix mode, `punctuation_chars=True`); the call is denied if the tokenizer surfaces any standalone shell-operator token — `;`, `&&`, `||`, `|`, `&`, `<`, `>`, `>>`, `>&`, `(`, `)` — or if the raw command contains `$(...)` or backticks. Roles may therefore only run a single command with no compounding, pipes, redirection, backgrounding, subshells, or command substitution. Quoted argument content is preserved as a single token, so legitimate operator characters inside an argument (e.g. `harness-append "stop-request: tried foo; failed"`, `grep '<T>' src/main.cpp`) are fine. The shim name `harness-monitor` and `harness-append` are matched by **first program token** after any leading `KEY=VALUE` env assignments — not by substring — so `harness-monitor; rm -rf /` and `echo $(harness-monitor)` are denied. The same shlex-based first-token check fences `peer_fence`'s monitor exemption.
+**Simple commands only.** Before the pattern match runs, every harness-role Bash call is parsed with `shlex` (posix mode, `punctuation_chars=True`); the call is denied if the tokenizer surfaces any standalone shell-operator token — `;`, `&&`, `||`, `|`, `&`, `<`, `>`, `>>`, `>&`, `(`, `)` — or if the raw command contains `$(...)` or backticks. Roles may therefore only run a single command with no compounding, pipes, redirection, backgrounding, subshells, or command substitution. Quoted argument content is preserved as a single token, so legitimate operator characters inside an argument (e.g. `grep '<T>' src/main.cpp`) are fine. Pattern matching is on the **first program token** after any leading `KEY=VALUE` env assignments — not by substring.
 
 The asymmetry between roles is deliberate. The tester needs to run tests (so its allowlist is typically rich); the implementer reads, writes, and edits code — it does not need general shell. Restricting implementer Bash narrows the attack surface and keeps the role focused.
 

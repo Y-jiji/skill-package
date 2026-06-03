@@ -3,28 +3,20 @@
 .claude/settings.json under the functional-harness namespace.
 
 Caller role is identified directly from `agent_type` in the hook event.
-Parent (no agent_type) is not fenced. Harness scripts (harness-monitor,
-harness-append, harness-marker-write) are always allowed.
+Parent (no agent_type) is not fenced.
 
 Simple commands only: a harness-role Bash call must be a single
 invocation — no compounding (`;`, `&&`, `||`), no pipes (`|`), no
 backgrounding (`&`), no redirection (`<`, `>`, `2>&1`), no subshells
-(`(...)`), and no command substitution (`$(...)`, backticks). The
-command is tokenized with `shlex` in posix mode with
-`punctuation_chars=True`, which surfaces shell operators as standalone
-tokens we can detect; quoted arguments (e.g. `harness-append
-"stop-request: I tried foo; bar"`) keep their content as a single token
-so legitimate semicolons inside messages are not mistaken for
-separators. Without this check, a substring/prefix match on the leading
-script name (`harness-monitor`, `pytest`, …) lets `harness-monitor; rm
--rf /` or `echo $(harness-monitor)` slip past the allowlist.
+(`(...)`), and no command substitution (`$(...)`, backticks). Tokenized
+with `shlex` in posix mode with `punctuation_chars=True` so unquoted
+shell operators surface as standalone tokens; quoted argument content
+is preserved as a single token.
 
 When a Bash call is permitted for a harness role, emits a PreToolUse
-`approve` decision on stdout. This mirrors write_constraints' approval
-channel and ensures background subagents — which don't inherit the parent
-session's interactive permission state — can run the allowlisted commands
-without hitting Claude's permission prompt. Denials still exit 2; non-
-harness callers pass through silently.
+`approve` decision on stdout so the call isn't denied non-interactively
+at Claude's permission layer. Denials exit 2; non-harness callers pass
+through silently.
 """
 import json
 import os
@@ -33,7 +25,6 @@ import shlex
 import sys
 
 
-ALWAYS_ALLOWED_TOKENS = ('harness-monitor', 'harness-park', 'harness-append', 'harness-marker-write')
 HARNESS_ROLES = {'implementer', 'tester'}
 # A token whose content is exclusively these characters is a shell
 # operator (e.g. ';', '|', '&&', '>&', '>>'). Used as the "is this a
@@ -43,6 +34,9 @@ _SHELL_OPERATOR_CHARS = frozenset(';|&<>()')
 # bash accepts before the actual command (matches what agent_env_inject
 # prepends for role identity).
 _ENV_ASSIGN_RE = re.compile(r'[A-Za-z_][A-Za-z_0-9]*=')
+# Same shape as above but anchored for the strip-prefix pass: zero or
+# more leading KEY=VALUE assignments followed by whitespace.
+_ENV_PREFIX_RE = re.compile(r'\s*([A-Za-z_][A-Za-z_0-9]*)=(\S*)\s+')
 
 
 def project_root() -> str:
@@ -120,6 +114,21 @@ def leading_command(tokens: list[str]) -> str | None:
     return None
 
 
+def strip_env_prefix(cmd: str) -> str:
+    """Strip leading bash KEY=VALUE env assignments from a command
+    string. agent_env_inject prepends AGENT_TYPE=... AGENT_ID=... to
+    every subagent Bash call; without stripping, user-configured
+    allowlist patterns like '^cargo test' never match. We strip
+    iteratively, preserving the rest of the command verbatim (spaces,
+    quoting, everything past the prefix)."""
+    rest = cmd
+    while True:
+        m = _ENV_PREFIX_RE.match(rest)
+        if not m:
+            return rest.lstrip()
+        rest = rest[m.end():]
+
+
 def main() -> None:
     try:
         event = json.load(sys.stdin)
@@ -143,13 +152,11 @@ def main() -> None:
     if program is None:
         deny(f"{role} Bash '{cmd[:80]}' has no program token.")
 
-    if program in ALWAYS_ALLOWED_TOKENS:
-        approve(f"harness script ({program}) is always allowed")
-
     patterns = load_allowlist(role)
+    effective_cmd = strip_env_prefix(cmd)
     for pat in patterns:
         try:
-            if re.match(pat, cmd):
+            if re.match(pat, effective_cmd):
                 approve(f"matched {role}_bash_allowlist pattern {pat!r}")
         except re.error:
             continue
@@ -157,8 +164,7 @@ def main() -> None:
     field = f'{role}_bash_allowlist'
     summary = f"({len(patterns)} pattern{'s' if len(patterns) != 1 else ''} configured)" if patterns else "(empty)"
     deny(f"{role} Bash '{cmd[:80]}' is not permitted. Configured allowlist "
-         f"{summary} at .claude/settings.json functional-harness.{field}. "
-         f"Harness scripts are always allowed.")
+         f"{summary} at .claude/settings.json functional-harness.{field}.")
 
 
 if __name__ == '__main__':

@@ -240,14 +240,24 @@ def main() -> None:
         sys.exit(0)
 
     root = project_root()
-    constraints = load_constraints(root)
-    if not constraints:
-        approve("no write_constraints configured")
 
     try:
         rel_path = os.path.relpath(path, root)
     except ValueError:
         rel_path = path
+
+    # Hard built-in fence: harness roles may never write under design/.
+    # design/ belongs to the user — the implementer doc claims this
+    # restriction, so the harness must enforce it regardless of
+    # per-project write_constraints. This applies to both roles; the
+    # tester writes tests, not design.
+    if rel_path == 'design' or rel_path.startswith('design/') or rel_path.startswith('design' + os.sep):
+        deny(f"role '{role}' may not write under design/ — design docs "
+             f"belong to the user. Path: {rel_path}")
+
+    constraints = load_constraints(root)
+    if not constraints:
+        approve("no write_constraints configured (design/ fence passed)")
 
     try:
         with open(path) as f:
